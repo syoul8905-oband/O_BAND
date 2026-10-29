@@ -25,11 +25,14 @@
         if (/iPhone|iPad|iPod/i.test(ua)) {
           window.location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(currentUrl);
           setTimeout(function() {
-            window.location.href = 'kakaoweb://closeBrowser';
-          }, 200);
+            try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
+          }, 300);
         } else if (/Android/i.test(ua)) {
           var cleanUrl = currentUrl.replace(/^https?:\/\//i, '');
           window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end';
+          setTimeout(function() {
+            window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+          }, 500);
         }
       }
     })();
@@ -74,6 +77,25 @@
         </div>
       </div>
     </header>
+
+    <!-- 모바일 전용 1초 앱 설치 플로팅 배너 -->
+    <div id="pwaInstallBanner" style="display:none; background: linear-gradient(135deg, rgba(121, 40, 202, 0.95), rgba(255, 0, 128, 0.95)); color: #fff; padding: 10px 14px; margin: 8px 12px 6px; border-radius: 12px; box-shadow: 0 4px 16px rgba(121, 40, 202, 0.35); align-items: center; justify-content: space-between; gap: 8px; z-index: 90;">
+      <div style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0;" onclick="handleShortcutNavClick()">
+        <span style="font-size: 20px;">📲</span>
+        <div style="line-height: 1.35; min-width: 0;">
+          <div style="font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">오뺀 앱 1초 만에 설치하기</div>
+          <div style="font-size: 11px; opacity: 0.9; color: #f1f5f9;">스마트폰 홈 화면에 바로가기를 추가하세요</div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button type="button" onclick="handleShortcutNavClick()" style="background: #ffffff; color: #7928ca; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 12px; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+          설치
+        </button>
+        <button type="button" onclick="dismissPwaBanner()" style="background: rgba(0,0,0,0.25); color: #fff; border: none; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+          ✕
+        </button>
+      </div>
+    </div>
 
     <!-- 1. 합주실 예약 탭 (월간 달력 그리드) -->
     <main id="tab-reservation" class="tab-content active">

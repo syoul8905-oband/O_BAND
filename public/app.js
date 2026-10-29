@@ -48,10 +48,34 @@ function checkKakaoBanner() {
   }
 }
 
+// 모바일 웹 접속 시 1초 앱 설치 배너 표출
+function checkPwaInstallBanner() {
+  const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
+                       window.matchMedia('(display-mode: standalone)').matches;
+  if (isStandalone) return;
+  if (sessionStorage.getItem('pwa_banner_dismissed') === '1') return;
+
+  const ua = navigator.userAgent || '';
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const isKakao = /KAKAOTALK/i.test(ua);
+
+  if (isMobile && !isKakao) {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'flex';
+  }
+}
+
+function dismissPwaBanner() {
+  sessionStorage.setItem('pwa_banner_dismissed', '1');
+  const banner = document.getElementById('pwaInstallBanner');
+  if (banner) banner.style.display = 'none';
+}
+
 // 앱 시작 즉시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     checkKakaoBanner();
+    checkPwaInstallBanner();
     updateAdminHeaderUI();
     initCalendarSwipe();
     initSleepModeTracker();
@@ -1409,6 +1433,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
   console.log('✨ PWA 홈 화면 추가 프롬프트 준비 완료');
+  checkPwaInstallBanner();
   const btn = document.getElementById('btnAutoInstallText');
   if (btn) btn.textContent = '✨ 홈 화면에 바로가기 추가하기';
   const icon = document.getElementById('btnAutoInstallIcon');
@@ -1420,7 +1445,8 @@ function handleShortcutNavClick() {
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const isStandalone = ('standalone' in window.navigator) && window.navigator.standalone;
+  const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
+                       window.matchMedia('(display-mode: standalone)').matches;
 
   // 0) 이미 아이폰/안드로이드 홈 화면 앱으로 실행 중인 경우
   if (isStandalone) {
@@ -1446,7 +1472,8 @@ function handleShortcutNavClick() {
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((choiceResult) => {
       if (choiceResult.outcome === 'accepted') {
-        showToast('🎉 바탕화면에 바로가기가 추가되었습니다!');
+        showToast('🎉 스마트폰 홈 화면에 앱 바로가기가 설치되었습니다!');
+        dismissPwaBanner();
       }
       deferredInstallPrompt = null;
     });
