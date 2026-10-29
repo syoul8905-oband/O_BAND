@@ -1147,20 +1147,30 @@ function escapeHtml(str) {
 }
 
 // 14. 카카오톡 예약 내용 공유 시스템
+const MASTER_KAKAO_KEY = '9c7896446460c61031857bb22b4c3d02';
 let lastBookingInfo = null;
 let toastTimer = null;
 
-function initKakaoSDK() {
-  if (window.Kakao && bookingWindow && bookingWindow.kakao_js_key) {
-    if (!Kakao.isInitialized()) {
-      try {
-        Kakao.init(bookingWindow.kakao_js_key.trim());
-        console.log('✅ Kakao SDK 초기화 성공');
-      } catch (e) {
-        console.warn('Kakao init error:', e);
-      }
+function ensureKakaoInitialized() {
+  if (typeof window.Kakao === 'undefined') {
+    return false;
+  }
+  if (!Kakao.isInitialized()) {
+    const key = (bookingWindow && bookingWindow.kakao_js_key && bookingWindow.kakao_js_key.trim())
+      ? bookingWindow.kakao_js_key.trim()
+      : MASTER_KAKAO_KEY;
+    try {
+      Kakao.init(key);
+      console.log('✅ Kakao SDK 초기화 완료:', key);
+    } catch (e) {
+      console.error('Kakao init error:', e);
     }
   }
+  return Kakao.isInitialized();
+}
+
+function initKakaoSDK() {
+  ensureKakaoInitialized();
 }
 
 function openBookingSuccessModal(info) {
@@ -1231,6 +1241,8 @@ function shareReservationDirect(resDate, startTime, endTime, bandTeam, memberNam
 }
 
 function shareReservationKakao(info) {
+  const isKakaoReady = ensureKakaoInitialized();
+
   const days = ['일', '월', '화', '수', '목', '금', '토'];
   const d = new Date(info.res_date + 'T00:00:00');
   const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
@@ -1247,12 +1259,14 @@ function shareReservationKakao(info) {
     ? window.location.origin
     : 'https://o-band.onrender.com';
 
+  const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`;
+
   // 1. 카카오톡 공식 SDK 직접 연동 (카톡 앱 즉시 실행 및 채팅방/친구 선택 창 바로 띄우기)
-  if (window.Kakao && Kakao.isInitialized()) {
+  if (isKakaoReady) {
     try {
       Kakao.Share.sendDefault({
         objectType: 'text',
-        text: `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`,
+        text: shareText,
         link: {
           mobileWebUrl: shareUrl,
           webUrl: shareUrl
@@ -1267,32 +1281,21 @@ function shareReservationKakao(info) {
           }
         ]
       });
-      return;
+      return; // 카카오톡 공유 호출 완료
     } catch (err) {
-      console.warn('Kakao.Share sendDefault 에러:', err);
+      console.error('Kakao.Share.sendDefault 에러:', err);
+      // PC에서 브라우저 팝업이 차단된 경우 명확하게 안내
+      if (err && err.message && err.message.includes('focus')) {
+        alert('⚠️ PC 브라우저의 [팝업 차단]으로 인해 카카오톡 공유창이 열리지 못했습니다!\n브라우저 주소창 우측 상단의 팝업 차단 아이콘을 눌러 "팝업 항상 허용"을 선택해 주세요.');
+        return;
+      }
+      alert(`⚠️ 카카오톡 연결 실패: ${err.message || err}`);
+      return;
     }
   }
 
-  // 2. 카카오 JS 키가 미설정된 경우: 키 등록 안내 후 navigator.share / 클립보드 폴백
-  if (!bookingWindow || !bookingWindow.kakao_js_key) {
-    showToast('⚠️ 카카오톡 채팅방 직접 선택을 위해\n관리자 설정(⚙️)에서 카카오 JS 키를 등록해 주세요!');
-  }
-
-  const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name}\n📍 장소: 오뺀 합주실\n\n👉 합주 일정 확인하기:\n${shareUrl}`;
-
-  if (navigator.share) {
-    navigator.share({
-      title: `오늘부터 밴드부 합주 예약 (${info.band_team || '합주'})`,
-      text: shareText,
-      url: shareUrl
-    }).catch(err => {
-      if (err.name !== 'AbortError') {
-        copyShareTextFallback(shareText);
-      }
-    });
-  } else {
-    copyShareTextFallback(shareText);
-  }
+  // 2. SDK 로드 실패 시 명확한 경고
+  alert('⚠️ 카카오톡 SDK를 로드할 수 없습니다. 네트워크 연결을 확인해 주세요.');
 }
 
 function copyShareTextFallback(text) {
