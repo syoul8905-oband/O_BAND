@@ -77,16 +77,18 @@ def run_wtt():
     assert len(month_rows) > 0, "월간 예약 조회 실패"
     print(f"✅ 5. [월간 캘린더 연동 쿼리] {month_prefix}월 예약 데이터 {len(month_rows)}건 정상 조회")
 
-    # 7. 관리자 설정 변경 (예: 3주로 변경)
+    # 7. 관리자 설정 변경 (예: 3주로 변경 및 팀명 빠른 선택 칩 동적 설정)
     cur.execute("UPDATE system_settings SET setting_value = '3' WHERE setting_key = 'open_weeks'")
+    cur.execute("UPDATE system_settings SET setting_value = '전체합주, 정기 1팀, 주말팀, A팀, 개인연습' WHERE setting_key = 'quick_teams'")
     conn.commit()
     new_window = server.get_booking_window()
     assert new_window['open_weeks'] == 3, "관리자 주차 변경 실패"
+    assert '주말팀' in new_window['quick_teams'] and 'A팀' in new_window['quick_teams'], "팀명 칩 설정 변경 실패"
     expected_saturday_3w = expected_sunday + timedelta(days=20)
     assert new_window['max_allowed_date'] == expected_saturday_3w.isoformat(), "3주차 마감일 계산 오류"
-    print(f"✅ 6. [관리자 조건 변경] 오픈 범위를 3주로 변경 시 마감일 {new_window['max_allowed_date']}로 즉시 동적 확장 확인")
+    print(f"✅ 6. [관리자 조건 변경 & 팀명 칩 동적 제어] 오픈 범위(3주) 및 팀명 빠른 메뉴({new_window['quick_teams']}) 즉시 동적 반영 확인")
 
-    # 2주로 원복
+    # 원복
     cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
     conn.commit()
 
@@ -127,7 +129,10 @@ def run_wtt():
     assert 'initCalendarSwipe' in app_js_text, "달력 좌우 터치 슬라이드 함수 누락"
     assert 'tab-members' not in index_html_text, "부원 명부 탭이 index.html에 잔존함"
     assert 'editMemberModal' not in index_html_text, "부원 수정 모달이 index.html에 잔존함"
-    print("✅ 9. [3개 탭 정돈 & 달력 좌우 슬라이드 제스처] 부원명부 UI 안전 제거 및 모바일 스와이프 100% 탑재 확인")
+    assert 'bookPurpose' not in index_html_text, "합주 목적 입력란이 index.html에 잔존함"
+    assert 'openTeamChipsModal' in index_html_text, "팀명 빠른메뉴 수정 버튼이 index.html에 누락됨"
+    assert 'openTeamChipsModal' in app_js_text and 'renderTeamQuickChips' in app_js_text, "팀명 칩 동적 렌더링 함수 누락"
+    print("✅ 9. [3개 탭 정돈 & 팀명 메뉴 수정 & 달력 슬라이드] 합주목적 제거, 팀명 칩 실시간 수정, 모바일 스와이프 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))

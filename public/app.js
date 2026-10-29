@@ -16,6 +16,7 @@ let bookingWindow = {
   max_allowed_date: todayStr,
   open_weeks: 2,
   reset_day: 0,
+  quick_teams: '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습',
   description: ''
 };
 let monthReservations = [];
@@ -48,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCalendar();
     renderDayTimeline(selectedDate);
     refreshTimeSlotsForDate(selectedDate);
+    renderTeamQuickChips();
 
     // 2. 비동기 데이터 로드 및 달력 실시간 업데이트
     await loadBookingWindow();
@@ -150,6 +152,7 @@ async function loadBookingWindow() {
     const data = await res.json();
     if (data.success && data.window) {
       bookingWindow = data.window;
+      renderTeamQuickChips();
       const noticeEl = document.getElementById('windowNoticeText');
       if (noticeEl) {
         if (isAdmin) {
@@ -606,14 +609,74 @@ function setTeamName(name) {
   document.getElementById('bookBandTeam').value = name;
 }
 
+// 팀명 빠른 선택 칩 동적 렌더링
+function renderTeamQuickChips() {
+  const container = document.getElementById('teamQuickChips');
+  if (!container) return;
+
+  const raw = bookingWindow.quick_teams || '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습';
+  const teams = raw.split(',').map(t => t.trim()).filter(Boolean);
+
+  container.innerHTML = teams.map(t => 
+    `<span class="quick-tag-chip" onclick="setTeamName('${escapeHtml(t)}')">${escapeHtml(t)}</span>`
+  ).join('');
+}
+
+// 팀명 빠른 선택 메뉴 관리자 수정 모달
+function openTeamChipsModal() {
+  const inputTeams = document.getElementById('inputQuickTeams');
+  const inputPin = document.getElementById('inputTeamChipsPin');
+  if (inputTeams) {
+    inputTeams.value = bookingWindow.quick_teams || '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습';
+  }
+  if (inputPin) {
+    inputPin.value = isAdmin ? (adminPin || '9999') : '';
+  }
+  openModal('teamChipsModal');
+}
+
+async function submitTeamChips(e) {
+  e.preventDefault();
+  const teamsVal = document.getElementById('inputQuickTeams').value.trim();
+  const pinVal = document.getElementById('inputTeamChipsPin').value.trim();
+
+  if (!teamsVal) {
+    alert('최소 1개 이상의 팀명을 입력해 주세요.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quick_teams: teamsVal,
+        pin: pinVal
+      })
+    });
+    const result = await res.json();
+    if (!result.success) {
+      alert(result.message || '저장 실패');
+      return;
+    }
+
+    bookingWindow.quick_teams = teamsVal;
+    renderTeamQuickChips();
+    closeModal('teamChipsModal');
+    alert('🎉 팀명 빠른 선택 메뉴가 성공적으로 변경되었습니다!');
+  } catch (err) {
+    alert(`오류: ${err.message}`);
+  }
+}
+
 // 6. 예약 모달 열기 및 제출
 function openBookingModalForSelectedDate() {
   document.getElementById('bookDate').value = selectedDate;
   document.getElementById('bookMemberName').value = '';
   document.getElementById('bookBandTeam').value = '';
-  document.getElementById('bookPurpose').value = '';
   document.getElementById('bookPin').value = isAdmin ? (adminPin || '9999') : '';
   
+  renderTeamQuickChips();
   refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
 }
@@ -627,7 +690,7 @@ async function submitBooking(e) {
     member_name: document.getElementById('bookMemberName').value.trim(),
     band_team: document.getElementById('bookBandTeam').value.trim() || '전체합주',
     part: document.getElementById('bookPart').value,
-    purpose: document.getElementById('bookPurpose').value.trim(),
+    purpose: '',
     pin: document.getElementById('bookPin').value.trim()
   };
 

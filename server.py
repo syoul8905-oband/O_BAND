@@ -121,8 +121,9 @@ def init_db():
         VALUES 
         ('open_weeks', '2', '일요일 기준 예약 오픈 주차 수 (달력상 2줄)', ?),
         ('reset_day', '0', '리셋 기준 요일 (0: 일요일, 1: 월요일)', ?),
-        ('admin_pin', '9999', '관리자 설정 변경 PIN', ?)
-    ''', (now_str, now_str, now_str))
+        ('admin_pin', '9999', '관리자 설정 변경 PIN', ?),
+        ('quick_teams', '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습', '팀명 빠른 선택 메뉴 목록', ?)
+    ''', (now_str, now_str, now_str, now_str))
     
     # 초기 샘플 공지사항 및 곡 추가 (비어있을 때만)
     cur.execute("SELECT COUNT(*) FROM notices")
@@ -178,6 +179,7 @@ def get_booking_window():
 
     open_weeks = int(settings.get('open_weeks', 2))
     reset_day = int(settings.get('reset_day', 0)) # 0: 일요일
+    quick_teams = settings.get('quick_teams', '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습')
     
     today = datetime.now().date()
     # Python: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
@@ -194,6 +196,7 @@ def get_booking_window():
         'max_allowed_date': max_allowed_date.isoformat(),
         'open_weeks': open_weeks,
         'reset_day': reset_day,
+        'quick_teams': quick_teams,
         'description': f"매주 일요일 기준 다음 주 토요일({max_allowed_date.isoformat()})까지 예약 가능"
     }
 
@@ -585,6 +588,9 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cur.execute("UPDATE system_settings SET setting_value = ?, updated_at = ? WHERE setting_key = 'open_weeks'", (str(open_weeks), now_str))
             if reset_day is not None:
                 cur.execute("UPDATE system_settings SET setting_value = ?, updated_at = ? WHERE setting_key = 'reset_day'", (str(reset_day), now_str))
+            quick_teams = body.get('quick_teams')
+            if quick_teams is not None:
+                cur.execute("INSERT OR REPLACE INTO system_settings (setting_key, setting_value, description, updated_at) VALUES ('quick_teams', ?, '팀명 빠른 선택 메뉴 목록', ?)", (str(quick_teams).strip(), now_str))
 
             conn.commit()
             conn.close()
