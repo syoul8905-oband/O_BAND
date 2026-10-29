@@ -169,20 +169,26 @@
       <form id="bookingForm" onsubmit="submitBooking(event)">
         <div class="form-group">
           <label class="form-label">예약 날짜</label>
-          <input type="date" class="form-input" id="bookDate" required>
+          <input type="date" class="form-input" id="bookDate" onchange="onBookingDateChange()" required>
         </div>
+
+        <!-- 당일 이미 예약된 시간대 알림 박스 -->
+        <div id="modalBookedSlotsAlert" style="margin-bottom:12px; font-size:12px; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border-light); line-height:1.5;"></div>
 
         <!-- 자유 시간 선택 -->
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">시작 시간</label>
-            <select class="form-select" id="bookStartTime" onchange="autoAdjustEndTime()" required></select>
+            <select class="form-select" id="bookStartTime" onchange="onStartTimeChange()" required></select>
           </div>
           <div class="form-group">
             <label class="form-label">종료 시간</label>
-            <select class="form-select" id="bookEndTime" required></select>
+            <select class="form-select" id="bookEndTime" onchange="validateSelectedTimeRange()" required></select>
           </div>
         </div>
+
+        <!-- 시간 유효성 및 겹침 안내 메시지 -->
+        <div id="timeValidationMessage" style="font-size:12px; font-weight:700; margin-top:-6px; margin-bottom:10px; min-height:18px;"></div>
 
         <!-- 시간 퀵 선택 버튼 (1시간, 1.5시간, 2시간, 3시간) -->
         <div class="form-group" style="margin-top:-6px;">
@@ -237,7 +243,7 @@
           <input type="password" maxlength="4" pattern="\d{4}" class="form-input" id="bookPin" placeholder="취소 시 사용할 숫자 4자리" required>
         </div>
 
-        <button type="submit" class="btn-submit">예약 완료하기</button>
+        <button type="submit" class="btn-submit" id="btnSubmitBooking">예약 완료하기</button>
       </form>
     </div>
   </div>

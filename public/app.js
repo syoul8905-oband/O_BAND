@@ -302,44 +302,178 @@ function renderDayTimeline(dateStr) {
   `).join('');
 }
 
-// 5. 자유 시간대 및 빠른 이용시간 선택
-function initTimeOptions() {
+// 5. 스마트 시간대 생성 및 예약 마감 자동 차단 시스템
+let currentDayBookings = [];
+
+function onBookingDateChange() {
+  const dateVal = document.getElementById('bookDate').value;
+  if (dateVal) {
+    refreshTimeSlotsForDate(dateVal);
+  }
+}
+
+function refreshTimeSlotsForDate(targetDate) {
+  const alertBox = document.getElementById('modalBookedSlotsAlert');
   const startSelect = document.getElementById('bookStartTime');
   const endSelect = document.getElementById('bookEndTime');
   if (!startSelect || !endSelect) return;
 
+  // 당일 예약 건수 조회 (확정 건만)
+  currentDayBookings = monthReservations.filter(r => r.res_date === targetDate && r.status === 'confirmed');
+  currentDayBookings.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+  // 상단 예약 완료 알림 박스 표출
+  if (alertBox) {
+    if (currentDayBookings.length === 0) {
+      alertBox.style.background = 'rgba(16, 185, 129, 0.1)';
+      alertBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+      alertBox.innerHTML = '<span style="color:var(--success); font-weight:800;">✨ 해당 날짜는 모든 시간대(06:00 ~ 24:00) 예약 가능합니다.</span>';
+    } else {
+      alertBox.style.background = 'rgba(239, 68, 68, 0.12)';
+      alertBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+      const listHtml = currentDayBookings.map(b => 
+        `<div>🚫 <strong>${b.start_time} ~ ${b.end_time}</strong> [${escapeHtml(b.band_team)}] ${escapeHtml(b.member_name)}</div>`
+      ).join('');
+      alertBox.innerHTML = `
+        <div style="color:#f87171; font-weight:800; margin-bottom:4px;">⚠️ 이미 예약된 시간대 (선택 불가):</div>
+        <div style="font-size:11px; color:#e2e8f0; line-height:1.6;">${listHtml}</div>
+      `;
+    }
+  }
+
+  // 1) 시작 시간 옵션 채우기 (06:00 ~ 23:30, 30분 단위)
   startSelect.innerHTML = '';
-  endSelect.innerHTML = '';
+  let firstAvailableStart = null;
 
-  // 06:00 ~ 24:00 (30분 단위)
-  for (let h = 6; h <= 24; h++) {
+  for (let h = 6; h <= 23; h++) {
     ['00', '30'].forEach(m => {
-      if (h === 24 && m === '30') return;
       const timeStr = `${String(h).padStart(2, '0')}:${m}`;
-      
-      if (h < 24) {
-        const opt1 = document.createElement('option');
-        opt1.value = timeStr;
-        opt1.textContent = timeStr;
-        startSelect.appendChild(opt1);
-      }
+      // 해당 시간이 기존 예약 구간에 포함되는지 확인: b.start_time <= time < b.end_time
+      const isBooked = currentDayBookings.some(b => b.start_time <= timeStr && timeStr < b.end_time);
 
-      if (h > 6 || m === '30') {
-        const opt2 = document.createElement('option');
-        opt2.value = timeStr;
-        opt2.textContent = timeStr;
-        endSelect.appendChild(opt2);
+      const opt = document.createElement('option');
+      opt.value = timeStr;
+      if (isBooked) {
+        opt.disabled = true;
+        opt.textContent = `${timeStr} (❌ 마감)`;
+        opt.style.color = '#64748b';
+        opt.style.background = '#1e293b';
+      } else {
+        opt.textContent = timeStr;
+        if (!firstAvailableStart) {
+          firstAvailableStart = timeStr;
+        }
       }
+      startSelect.appendChild(opt);
     });
   }
 
-  startSelect.value = '18:00';
-  endSelect.value = '20:00';
+  // 기본 시작 시간 설정 (18:00이 가능하면 18:00, 안 되면 첫 번째 가능한 시간)
+  if (Array.from(startSelect.options).some(o => o.value === '18:00' && !o.disabled)) {
+    startSelect.value = '18:00';
+  } else if (firstAvailableStart) {
+    startSelect.value = firstAvailableStart;
+  }
+
+  // 2) 종료 시간 옵션 갱신
+  updateEndTimeOptions();
 }
 
-function autoAdjustEndTime() {
+function onStartTimeChange() {
+  updateEndTimeOptions();
+}
+
+function updateEndTimeOptions() {
+  const startSelect = document.getElementById('bookStartTime');
+  const endSelect = document.getElementById('bookEndTime');
+  if (!startSelect || !endSelect) return;
+
+  const startVal = startSelect.value;
+  if (!startVal) return;
+
+  // 시작 시간 이후에 존재하는 가장 빠른 예약 찾기 (마감 상한선)
+  const nextBooking = currentDayBookings.find(b => b.start_time > startVal);
+  const maxAllowedEnd = nextBooking ? nextBooking.start_time : '24:00';
+
+  endSelect.innerHTML = '';
+  const [sh, sm] = startVal.split(':').map(Number);
+  const startMinutes = sh * 60 + sm;
+
+  let defaultEndVal = null;
+  const targetEndMins = startMinutes + 120; // 기본 2시간
+
+  for (let mins = startMinutes + 30; mins <= 24 * 60; mins += 30) {
+    const eh = Math.floor(mins / 60);
+    const em = mins % 60;
+    const timeStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+
+    const opt = document.createElement('option');
+    opt.value = timeStr;
+
+    // 상한선(다음 예약 시작 시간)을 초과하는 종료 시간은 비활성화
+    if (timeStr > maxAllowedEnd) {
+      opt.disabled = true;
+      opt.textContent = `${timeStr} (❌ ${nextBooking.band_team} 예약과 겹침)`;
+      opt.style.color = '#64748b';
+      opt.style.background = '#1e293b';
+    } else {
+      opt.textContent = timeStr;
+      if (!defaultEndVal) {
+        defaultEndVal = timeStr;
+      }
+      if (mins === targetEndMins && timeStr <= maxAllowedEnd) {
+        defaultEndVal = timeStr;
+      }
+    }
+    endSelect.appendChild(opt);
+  }
+
+  if (defaultEndVal) {
+    endSelect.value = defaultEndVal;
+  }
+
+  validateSelectedTimeRange();
+}
+
+function validateSelectedTimeRange() {
   const start = document.getElementById('bookStartTime').value;
-  setQuickDuration(120); // 시작 시간 변경 시 기본 2시간 후로 자동 설정
+  const end = document.getElementById('bookEndTime').value;
+  const msgEl = document.getElementById('timeValidationMessage');
+  const btnSubmit = document.getElementById('btnSubmitBooking');
+
+  if (!start || !end) return;
+
+  if (start >= end) {
+    if (msgEl) {
+      msgEl.style.color = '#f87171';
+      msgEl.textContent = '❌ 종료 시간은 시작 시간보다 늦어야 합니다.';
+    }
+    if (btnSubmit) btnSubmit.disabled = true;
+    return;
+  }
+
+  // 중복 겹침 정밀 검사
+  const conflict = currentDayBookings.find(b => !(b.end_time <= start || b.start_time >= end));
+  if (conflict) {
+    if (msgEl) {
+      msgEl.style.color = '#f87171';
+      msgEl.textContent = `❌ 선택하신 시간대(${start}~${end})에 기존 예약(${conflict.start_time}~${conflict.end_time} [${conflict.band_team}])이 포함되어 선택할 수 없습니다!`;
+    }
+    if (btnSubmit) btnSubmit.disabled = true;
+    return;
+  }
+
+  // 정상
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const durationMinutes = (eh * 60 + em) - (sh * 60 + sm);
+  const hours = durationMinutes / 60;
+
+  if (msgEl) {
+    msgEl.style.color = 'var(--success)';
+    msgEl.textContent = `✅ ${hours}시간 합주 예약 가능 (${start} ~ ${end})`;
+  }
+  if (btnSubmit) btnSubmit.disabled = false;
 }
 
 function setQuickDuration(minutes) {
@@ -354,9 +488,20 @@ function setQuickDuration(minutes) {
   const endStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
 
   const endSelect = document.getElementById('bookEndTime');
-  if (Array.from(endSelect.options).some(o => o.value === endStr)) {
-    endSelect.value = endStr;
+  // 다음 예약 상한선 체크
+  const nextBooking = currentDayBookings.find(b => b.start_time > startStr);
+  const maxAllowedEnd = nextBooking ? nextBooking.start_time : '24:00';
+
+  if (endStr > maxAllowedEnd) {
+    alert(`⚠️ 선택하신 시작 시간(${startStr}) 이후에 기존 예약(${nextBooking.start_time} ${nextBooking.band_team})이 있어 ${maxAllowedEnd}까지만 예약 가능합니다.`);
+    endSelect.value = maxAllowedEnd;
+  } else {
+    if (Array.from(endSelect.options).some(o => o.value === endStr && !o.disabled)) {
+      endSelect.value = endStr;
+    }
   }
+
+  validateSelectedTimeRange();
 }
 
 function setTeamName(name) {
@@ -370,6 +515,8 @@ function openBookingModalForSelectedDate() {
   document.getElementById('bookBandTeam').value = '';
   document.getElementById('bookPurpose').value = '';
   document.getElementById('bookPin').value = '';
+  
+  refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
 }
 

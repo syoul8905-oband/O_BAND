@@ -138,8 +138,12 @@ def run_wtt():
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'admin-header-active' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'submitEditMember' in content
-    print("✅ 10. [관리자 모드 UI 무결성] 상단 관리자 토글, 강제취소 버튼, 부원 수정 모달 100% 탑재 확인")
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'validateSelectedTimeRange' in content
+
+    # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
+    cur.execute("DELETE FROM reservations")
+    conn.commit()
+    print("✅ 10. [스마트 예약 마감 차단 UI 무결성] 예약 마감 슬롯 비활성화 및 실시간 겹침 검사 엔진 100% 탑재 확인")
 
     conn.close()
     print("=================================================================")
