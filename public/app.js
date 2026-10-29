@@ -39,9 +39,19 @@ function updateAdminHeaderUI() {
   }
 }
 
+// 카카오톡 브라우저 감지 시 상단 안내 바 표출
+function checkKakaoBanner() {
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua)) {
+    const topBar = document.getElementById('kakaoTopNoticeBar');
+    if (topBar) topBar.style.display = 'flex';
+  }
+}
+
 // 앱 시작 즉시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    checkKakaoBanner();
     updateAdminHeaderUI();
     initCalendarSwipe();
     initSleepModeTracker();
@@ -1425,7 +1435,7 @@ function handleShortcutNavClick() {
     return;
   }
 
-  // 2) 아이폰 (iOS Safari): 애플 보안 정책에 맞춰 3초 직관적 가이드 바텀시트 즉시 호출
+  // 2) 아이폰 (iOS Safari): 1초 프로파일 다운로드 & 사파리 간편추가 안내창 즉시 호출
   if (isIOS) {
     openModal('iosInstallGuideModal');
     return;
@@ -1451,7 +1461,6 @@ function handleShortcutNavClick() {
 
   // 5) PC 환경인 경우 .url 파일 즉각 다운로드
   downloadDesktopShortcut();
-  showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
 }
 
 function openShortcutModal() {
@@ -1513,20 +1522,26 @@ function executeShortcutCreation() {
     return;
   }
 
-  // 3. 모바일 환경인데 프롬프트가 지원되지 않는 경우 (절대 .url 파일 다운로드 금지!)
-  if (isMobile) {
-    if (isIOS) {
-      closeModal('shortcutModal');
-      openModal('iosInstallGuideModal');
-    } else {
-      alert('📱 브라우저 우측 상단 메뉴 [⋮]을 누른 후 [홈 화면에 추가] 또는 [앱 설치]를 선택해 주세요!');
-    }
+  // 3. 아이폰 환경인 경우 공식 프로파일 다운로드 및 안내
+  if (isIOS) {
+    closeModal('shortcutModal');
+    openModal('iosInstallGuideModal');
     return;
   }
 
-  // 4. 오직 PC 데스크톱 환경에서만 .url 파일 다운로드 실행
+  // 4. 모바일 환경인데 프롬프트가 지원되지 않는 경우
+  if (isMobile) {
+    alert('📱 브라우저 우측 상단 메뉴 [⋮]을 누른 후 [홈 화면에 추가] 또는 [앱 설치]를 선택해 주세요!');
+    return;
+  }
+
+  // 5. 오직 PC 데스크톱 환경에서만 .url 파일 다운로드 실행
   downloadDesktopShortcut();
-  showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
+}
+
+function downloadIosProfile() {
+  showToast('📥 애플 공식 구성 프로파일을 다운로드합니다...');
+  window.location.href = '/install.mobileconfig';
 }
 
 function escapeKakaoToExternalBrowser() {
@@ -1549,20 +1564,21 @@ function escapeKakaoToExternalBrowser() {
       window.location.href = genericIntent;
     }, 500);
   } else {
-    // iOS 사파리 탈출 스킴
+    // iOS 사파리 탈출 스킴 및 카카오 인앱 브라우저 닫기
     window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
+    setTimeout(() => {
+      window.location.href = 'kakaoweb://closeBrowser';
+    }, 200);
   }
 }
 
 function downloadDesktopShortcut() {
-  const targetUrl = window.location.origin || 'https://o-band.onrender.com';
-  const fileContent = `[InternetShortcut]\r\nURL=${targetUrl}/\r\nIconIndex=0\r\nHotKey=0\r\nIDList=\r\n[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,11\r\n`;
-  const blob = new Blob([fileContent], { type: 'application/octet-stream' });
+  // 서버 직접 다운로드 엔드포인트 호출
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = '/download-shortcut';
   a.download = '오늘부터밴드부_오뺀.url';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
 }

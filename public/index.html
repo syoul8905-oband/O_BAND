@@ -16,9 +16,38 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <link rel="stylesheet" href="style.css">
+  <!-- 카카오톡 인앱 브라우저 감지 시 외부 브라우저(크롬/사파리)로 즉시 자동 탈출 -->
+  <script>
+    (function() {
+      var ua = navigator.userAgent || '';
+      if (/KAKAOTALK/i.test(ua)) {
+        var currentUrl = window.location.href;
+        if (/iPhone|iPad|iPod/i.test(ua)) {
+          window.location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(currentUrl);
+          setTimeout(function() {
+            window.location.href = 'kakaoweb://closeBrowser';
+          }, 200);
+        } else if (/Android/i.test(ua)) {
+          var cleanUrl = currentUrl.replace(/^https?:\/\//i, '');
+          window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end';
+        }
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="mobile-container">
+    <!-- 카카오톡 인앱 브라우저 특별 알림 바 -->
+    <div id="kakaoTopNoticeBar" style="display:none; background: linear-gradient(135deg, #fee500, #facc15); color: #111; padding: 10px 14px; margin: 10px 12px; border-radius: 12px; font-weight: 700; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,0.3); align-items: center; justify-content: space-between; gap: 8px;">
+      <div style="line-height: 1.35;">
+        <div>💬 카톡 브라우저 감지됨</div>
+        <div style="font-size: 11px; font-weight: 500; color: #334155;">홈 화면 바로가기 자동 설치를 위해 전용 브라우저로 이동합니다.</div>
+      </div>
+      <button type="button" onclick="escapeKakaoToExternalBrowser()" style="background:#000; color:#fff; border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:12px; white-space:nowrap; cursor:pointer;">
+        🚀 전용 브라우저로 열기
+      </button>
+    </div>
+
     <!-- 상단 헤더 -->
     <header class="app-header">
       <div class="brand-wrapper">
@@ -553,45 +582,63 @@
   <div class="modal-overlay" id="iosInstallGuideModal">
     <div class="bottom-sheet ios-guide-sheet">
       <div class="sheet-header">
-        <div class="sheet-title">🍎 아이폰 홈 화면에 추가하기</div>
+        <div class="sheet-title">🍎 아이폰 홈 화면에 바로가기 설치</div>
         <button class="sheet-close" onclick="closeModal('iosInstallGuideModal')">✕</button>
       </div>
       <div class="modal-body" style="padding: 18px 20px 24px; text-align: center;">
-        <div class="ios-guide-badge">애플(iOS) 공식 설치 안내</div>
-        <div class="ios-guide-heading">사파리에서 3초 만에 홈 화면에 추가하기</div>
+        <div class="ios-guide-badge">애플(iOS) 공식 바로가기</div>
+        <div class="ios-guide-heading">아래 2가지 방법 중 하나를 선택해 주세요</div>
         <div class="ios-guide-sub">
-          애플(iOS) 보안 정책으로 인해 웹사이트의 자동 설치가 제한되어 있습니다.<br>
-          사파리 브라우저의 공유 기능을 통해 바로 추가하실 수 있습니다.
+          애플(iOS) 보안 정책상 웹사이트의 무단 아이콘 투하는 금지되어 있으므로,<br>
+          [공식 프로파일 다운로드] 또는 [사파리 간편 추가]로 홈 화면에 생성됩니다.
         </div>
 
-        <div class="ios-steps-container">
-          <div class="ios-step-card">
-            <div class="ios-step-num">1</div>
-            <div class="ios-step-content">
-              사파리 화면 맨 아래 <strong>[공유 <span style="font-size:16px;">⎋</span> / 📤]</strong> 아이콘 터치
-            </div>
+        <!-- 방법 1. 원클릭 공식 프로파일 다운로드 -->
+        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
+          <div style="font-size: 13px; font-weight: 800; color: #60a5fa; margin-bottom: 4px;">⚡ 방법 1: 1초 공식 프로파일 다운로드</div>
+          <div style="font-size: 11px; color: #cbd5e1; line-height: 1.45; margin-bottom: 10px;">
+            애플 공식 홈 화면 WebClip 설치 파일을 스마트폰에 즉시 다운로드합니다.
           </div>
-          <div class="ios-step-card">
-            <div class="ios-step-num">2</div>
-            <div class="ios-step-content">
-              올라오는 메뉴 목록에서 <strong>[홈 화면에 추가 <span style="font-size:15px;">➕</span>]</strong> 선택
-            </div>
+          <button type="button" class="btn-shortcut-primary" onclick="downloadIosProfile()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); margin-bottom: 4px;">
+            <span>📥 애플 공식 프로파일 다운로드</span>
+          </button>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: center;">
+            다운로드 후 아이폰 [설정 ➔ 상단 프로파일 다운로드됨 ➔ 설치] 터치 시 즉시 생성!
           </div>
-          <div class="ios-step-card">
-            <div class="ios-step-num">3</div>
-            <div class="ios-step-content">
-              우측 상단의 <strong>[추가]</strong> 버튼을 누르면 바탕화면에 앱 아이콘 생성 완료!
+        </div>
+
+        <!-- 방법 2. 사파리 2초 간편 추가 안내 -->
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-light); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
+          <div style="font-size: 13px; font-weight: 800; color: #facc15; margin-bottom: 8px;">🍎 방법 2: 사파리 간편 추가 (가장 쉬움)</div>
+          <div class="ios-steps-container" style="margin-bottom: 8px;">
+            <div class="ios-step-card">
+              <div class="ios-step-num">1</div>
+              <div class="ios-step-content">
+                사파리 화면 맨 아래 <strong>[공유 <span style="font-size:16px;">⎋</span> / 📤]</strong> 아이콘 터치
+              </div>
+            </div>
+            <div class="ios-step-card">
+              <div class="ios-step-num">2</div>
+              <div class="ios-step-content">
+                올라오는 메뉴 목록에서 <strong>[홈 화면에 추가 <span style="font-size:15px;">➕</span>]</strong> 선택
+              </div>
+            </div>
+            <div class="ios-step-card">
+              <div class="ios-step-num">3</div>
+              <div class="ios-step-content">
+                우측 상단의 <strong>[추가]</strong> 버튼을 누르면 바탕화면에 앱 아이콘 생성 완료!
+              </div>
             </div>
           </div>
         </div>
 
         <div class="ios-pointer-box">
           <div class="ios-pointer-arrow">👇</div>
-          <div class="ios-pointer-text">화면 맨 아래 사파리 툴바의 <strong>[공유]</strong> 버튼을 눌러주세요</div>
+          <div class="ios-pointer-text">사파리 화면 맨 아래 <strong>[공유 📤]</strong> 버튼을 누르시면 됩니다</div>
         </div>
 
         <button type="button" class="btn-shortcut-secondary" onclick="closeModal('iosInstallGuideModal')">
-          확인했습니다
+          닫기
         </button>
       </div>
     </div>

@@ -152,7 +152,33 @@ def run_wtt():
     assert 'wakeFromSleep' in app_js_text and 'initSleepModeTracker' in app_js_text, "절전 모드 제어 함수 누락"
     assert 'shortcutModal' in index_html_text and 'navItemShortcut' in index_html_text, "바탕화면 바로가기 UI 누락"
     assert 'handleShortcutNavClick' in app_js_text and 'downloadDesktopShortcut' in app_js_text and 'escapeKakaoToExternalBrowser' in app_js_text, "바탕화면 바로가기 함수 누락"
-    print("✅ 9. [드롭다운 & 카카오톡 예약공유 & 스마트 절전 모드 & 바로가기] 팀명 드롭다운, 스와이프, 카톡 공유, 절전 오버레이, 바탕화면 바로가기 100% 확인")
+    assert 'downloadIosProfile' in app_js_text, "애플 프로파일 다운로드 함수 누락"
+    assert 'kakaotalk://web/openExternal' in index_html_text and 'kakaotalk://web/openExternal' in app_js_text, "카카오톡 사파리 자동 탈출 스킴 누락"
+    assert 'package=com.android.chrome' in index_html_text and 'package=com.android.chrome' in app_js_text, "안드로이드 크롬 인텐트 탈출 스킴 누락"
+
+    # 모바일 프로파일 및 바로가기 직접 다운로드 엔드포인트 검증
+    import io
+    class MockSocket:
+        def __init__(self, req_bytes):
+            self.rfile = io.BytesIO(req_bytes)
+            self.wfile = io.BytesIO()
+        def makefile(self, mode, *args, **kwargs):
+            return self.rfile if 'r' in mode else self.wfile
+        def sendall(self, b):
+            self.wfile.write(b)
+
+    sock1 = MockSocket(b'GET /install.mobileconfig HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    server.BandClubRequestHandler(sock1, ('127.0.0.1', 1234), None)
+    out1 = sock1.wfile.getvalue().decode('utf-8', errors='ignore')
+    assert 'application/x-apple-aspen-config' in out1, "/install.mobileconfig MIME 타입 오류"
+    assert 'com.apple.webClip.managed' in out1, "/install.mobileconfig WebClip 페이로드 오류"
+
+    sock2 = MockSocket(b'GET /download-shortcut HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    server.BandClubRequestHandler(sock2, ('127.0.0.1', 1234), None)
+    out2 = sock2.wfile.getvalue().decode('utf-8', errors='ignore')
+    assert '[InternetShortcut]' in out2, "/download-shortcut 내용 오류"
+
+    print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))

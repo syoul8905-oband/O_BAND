@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import urllib.parse
+import base64
 from datetime import datetime, timedelta, date
 
 if sys.stdout.encoding != 'utf-8':
@@ -344,6 +345,84 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
         # 5. 시스템 설정 및 예약 가능 윈도우 조회: /api/settings
         if path == '/api/settings':
             self.send_json({'success': True, 'window': get_booking_window()})
+            return
+
+        # 6. 아이폰(iOS) WebClip 구성 프로파일 다운로드: /install.mobileconfig
+        if path == '/install.mobileconfig':
+            icon_path = os.path.join(PUBLIC_DIR, 'icon-192.png')
+            icon_b64 = ""
+            if os.path.exists(icon_path):
+                with open(icon_path, 'rb') as f:
+                    icon_b64 = base64.b64encode(f.read()).decode('utf-8')
+            
+            profile_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>FullScreen</key>
+            <true/>
+            <key>Icon</key>
+            <data>{icon_b64}</data>
+            <key>IsRemovable</key>
+            <true/>
+            <key>Label</key>
+            <string>오뺀</string>
+            <key>PayloadDescription</key>
+            <string>오늘부터 밴드부 홈 화면 바로가기 앱</string>
+            <key>PayloadDisplayName</key>
+            <string>오늘부터 밴드부 (오뺀)</string>
+            <key>PayloadIdentifier</key>
+            <string>com.oband.webclip</string>
+            <key>PayloadOrganization</key>
+            <string>오늘부터 밴드부</string>
+            <key>PayloadType</key>
+            <string>com.apple.webClip.managed</string>
+            <key>PayloadUUID</key>
+            <string>5c7e3f20-8025-4a52-b8d1-7c981d3f4e22</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>Precomposed</key>
+            <true/>
+            <key>URL</key>
+            <string>https://o-band.onrender.com/</string>
+        </dict>
+    </array>
+    <key>PayloadDescription</key>
+    <string>오늘부터 밴드부 홈 화면 바로가기 설치 프로파일</string>
+    <key>PayloadDisplayName</key>
+    <string>오늘부터 밴드부 (오뺀)</string>
+    <key>PayloadIdentifier</key>
+    <string>com.oband.profile</string>
+    <key>PayloadOrganization</key>
+    <string>오늘부터 밴드부</string>
+    <key>PayloadUUID</key>
+    <string>9a3d4f10-1823-4e31-9f5a-3c1d2e4f5a6b</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>"""
+            content_bytes = profile_xml.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/x-apple-aspen-config; charset=utf-8')
+            self.send_header('Content-Disposition', 'attachment; filename="oband.mobileconfig"')
+            self.send_header('Content-Length', str(len(content_bytes)))
+            self.end_headers()
+            self.wfile.write(content_bytes)
+            return
+
+        # 7. PC 데스크톱 바로가기(.url) 직접 다운로드: /download-shortcut
+        if path in ['/download-shortcut', '/oband.url']:
+            shortcut_content = "[InternetShortcut]\r\nURL=https://o-band.onrender.com/\r\nIconIndex=0\r\nHotKey=0\r\nIDList=\r\n[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,11\r\n"
+            content_bytes = shortcut_content.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream; charset=utf-8')
+            self.send_header('Content-Disposition', "attachment; filename*=UTF-8''%EC%98%A4%EB%8A%98%EB%B6%80%ED%84%B0%EB%B0%B4%EB%93%9C%EB%B6%80_%EC%98%A4%EB%BE%AC.url")
+            self.send_header('Content-Length', str(len(content_bytes)))
+            self.end_headers()
+            self.wfile.write(content_bytes)
             return
 
         # 기본 정적 파일 서빙 (public 디렉터리)
