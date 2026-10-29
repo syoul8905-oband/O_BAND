@@ -153,6 +153,8 @@ def run_wtt():
     assert 'shortcutModal' in index_html_text and 'navItemShortcut' in index_html_text, "바탕화면 바로가기 UI 누락"
     assert 'handleShortcutNavClick' in app_js_text and 'downloadDesktopShortcut' in app_js_text and 'escapeKakaoToExternalBrowser' in app_js_text, "바탕화면 바로가기 함수 누락"
     assert 'downloadIosProfile' in app_js_text, "애플 프로파일 다운로드 함수 누락"
+    assert 'toggleShortcutGuide' in app_js_text and 'toggleShortcutGuide' in index_html_text, "바로가기 설명보기 토글 함수 누락"
+    assert 'btnAutoInstall' in index_html_text and 'btnToggleGuide' in index_html_text, "설치하기/설명보기 선택 버튼 누락"
     assert 'kakaotalk://web/openExternal' in index_html_text and 'kakaotalk://web/openExternal' in app_js_text, "카카오톡 사파리 자동 탈출 스킴 누락"
     assert 'package=com.android.chrome' in index_html_text and 'package=com.android.chrome' in app_js_text, "안드로이드 크롬 인텐트 탈출 스킴 누락"
 

@@ -1441,10 +1441,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function handleShortcutNavClick() {
-  const userAgent = navigator.userAgent || '';
-  const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
   const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
                        window.matchMedia('(display-mode: standalone)').matches;
 
@@ -1454,40 +1450,8 @@ function handleShortcutNavClick() {
     return;
   }
 
-  // 1) 카카오톡 인앱 브라우저: 외부 브라우저(크롬 또는 사파리)로 즉시 전환
-  if (isKakao) {
-    showToast(isIOS ? '🌐 사파리 브라우저로 이동합니다...' : '🚀 크롬 브라우저로 이동합니다...');
-    escapeKakaoToExternalBrowser();
-    return;
-  }
-
-  // 2) 아이폰 (iOS Safari): 1초 프로파일 다운로드 & 사파리 간편추가 안내창 즉시 호출
-  if (isIOS) {
-    openModal('iosInstallGuideModal');
-    return;
-  }
-
-  // 3) 크롬/삼성인터넷 등 PWA 지원 브라우저: 네이티브 '홈 화면에 추가' 다이얼로그 즉시 실행!
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then((choiceResult) => {
-      if (choiceResult.outcome === 'accepted') {
-        showToast('🎉 스마트폰 홈 화면에 앱 바로가기가 설치되었습니다!');
-        dismissPwaBanner();
-      }
-      deferredInstallPrompt = null;
-    });
-    return;
-  }
-
-  // 4) 모바일 브라우저(안드로이드 수동 추가 환경)
-  if (isAndroid) {
-    openShortcutModal();
-    return;
-  }
-
-  // 5) PC 환경인 경우 .url 파일 즉각 다운로드
-  downloadDesktopShortcut();
+  // 바로가기 선택 모달(설치하기 vs 설명보기) 즉시 오픈
+  openShortcutModal();
 }
 
 function openShortcutModal() {
@@ -1500,26 +1464,50 @@ function openShortcutModal() {
   const btnText = document.getElementById('btnAutoInstallText');
   const btnIcon = document.getElementById('btnAutoInstallIcon');
   const kakaoTip = document.getElementById('shortcutKakaoTip');
+  const guideBox = document.getElementById('shortcutGuideBox');
+  const arrow = document.getElementById('guideArrowIcon');
+
+  // 가이드 박스는 초기 접힘 상태로 유지
+  if (guideBox) guideBox.style.display = 'none';
+  if (arrow) arrow.textContent = '▼';
 
   if (isKakao) {
-    if (btnText) btnText.textContent = '🚀 크롬 / 기본 브라우저로 열기';
+    if (btnText) btnText.textContent = '크롬 / 사파리 외부 브라우저로 열기';
     if (btnIcon) btnIcon.textContent = '🌐';
     if (kakaoTip) kakaoTip.style.display = 'block';
   } else {
     if (kakaoTip) kakaoTip.style.display = 'none';
-    if (deferredInstallPrompt) {
-      if (btnText) btnText.textContent = '✨ 홈 화면에 앱 추가하기 (원클릭)';
-      if (btnIcon) btnIcon.textContent = '📱';
+    if (isIOS) {
+      if (btnText) btnText.textContent = '애플 공식 바로가기 다운로드 (설치)';
+      if (btnIcon) btnIcon.textContent = '🍎';
+    } else if (deferredInstallPrompt) {
+      if (btnText) btnText.textContent = '스마트폰 홈 화면에 바로 설치하기';
+      if (btnIcon) btnIcon.textContent = '🚀';
     } else if (!isMobile) {
-      if (btnText) btnText.textContent = '💾 바탕화면 바로가기 (.url) 다운로드';
+      if (btnText) btnText.textContent = '바탕화면 바로가기 (.url) 다운로드';
       if (btnIcon) btnIcon.textContent = '🖥️';
     } else {
-      if (btnText) btnText.textContent = '📲 스마트폰 홈 화면에 추가';
-      if (btnIcon) btnIcon.textContent = '⚡';
+      if (btnText) btnText.textContent = '스마트폰 홈 화면에 바로 설치하기';
+      if (btnIcon) btnIcon.textContent = '📱';
     }
   }
 
   openModal('shortcutModal');
+}
+
+function toggleShortcutGuide() {
+  const guideBox = document.getElementById('shortcutGuideBox');
+  const arrow = document.getElementById('guideArrowIcon');
+  if (!guideBox) return;
+
+  const isHidden = (guideBox.style.display === 'none' || !guideBox.style.display);
+  if (isHidden) {
+    guideBox.style.display = 'flex';
+    if (arrow) arrow.textContent = '▲';
+  } else {
+    guideBox.style.display = 'none';
+    if (arrow) arrow.textContent = '▼';
+  }
 }
 
 function executeShortcutCreation() {
@@ -1541,7 +1529,8 @@ function executeShortcutCreation() {
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((choiceResult) => {
       if (choiceResult.outcome === 'accepted') {
-        showToast('🎉 홈 화면에 앱 바로가기가 추가되었습니다!');
+        showToast('🎉 스마트폰 홈 화면에 앱 바로가기가 설치되었습니다!');
+        dismissPwaBanner();
         closeModal('shortcutModal');
       }
       deferredInstallPrompt = null;
@@ -1551,8 +1540,8 @@ function executeShortcutCreation() {
 
   // 3. 아이폰 환경인 경우 공식 프로파일 다운로드 및 안내
   if (isIOS) {
+    downloadIosProfile();
     closeModal('shortcutModal');
-    openModal('iosInstallGuideModal');
     return;
   }
 
@@ -1564,6 +1553,7 @@ function executeShortcutCreation() {
 
   // 5. 오직 PC 데스크톱 환경에서만 .url 파일 다운로드 실행
   downloadDesktopShortcut();
+  closeModal('shortcutModal');
 }
 
 function downloadIosProfile() {
