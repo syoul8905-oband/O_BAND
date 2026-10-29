@@ -10,7 +10,7 @@ import sys
 import os
 import sqlite3
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -38,16 +38,23 @@ def run_wtt():
     assert 'reset_day' in settings and settings['reset_day'] == '0', "기본 리셋 요일 누락"
     print("✅ 1. [시스템 설정 테이블] system_settings 및 2주 룰 기본값 확인 완료")
 
-    # 3. 2주 윈도우 계산 로직 검증 (일요일 기준)
+    # 3. 2주 윈도우 계산 로직 검증 (한국 표준시 KST 일요일 00:00 기준)
     window = server.get_booking_window()
-    today = datetime.now().date()
+    today = server.now_kst().date()
     days_since_sunday = (today.weekday() + 1) % 7
     expected_sunday = today - timedelta(days=days_since_sunday)
     expected_saturday = expected_sunday + timedelta(days=13) # 2주 (14일 - 1 = 토요일)
 
     assert window['this_reset_date'] == expected_sunday.isoformat(), "일요일 계산 오류"
     assert window['max_allowed_date'] == expected_saturday.isoformat(), "다음 주 토요일 계산 오류"
-    print(f"✅ 2. [2주 윈도우 계산] 오늘: {window['today']} | 이번 주 일요일: {window['this_reset_date']} | 예약 마감일: {window['max_allowed_date']} 정확히 일치")
+
+    # [핵심 검증] 토요일(2026-10-31) -> 일요일 00:00 정각(2026-11-01) 전환 시 즉시 +7일 오픈 검증
+    sat_win = server.get_booking_window(date(2026, 10, 31))
+    sun_win = server.get_booking_window(date(2026, 11, 1))
+    assert sat_win['max_allowed_date'] == '2026-11-07', f"토요일 마감일 계산 오류: {sat_win['max_allowed_date']}"
+    assert sun_win['this_reset_date'] == '2026-11-01', f"일요일 0시 리셋 기준일 오류: {sun_win['this_reset_date']}"
+    assert sun_win['max_allowed_date'] == '2026-11-14', f"일요일 0시 전환 후 +7일 오픈 오류: {sun_win['max_allowed_date']}"
+    print(f"✅ 2. [KST 일요일 0시 정각 자동 리셋 & 2주 윈도우] 토요일(~{sat_win['max_allowed_date']}) -> 일요일 00:00(~{sun_win['max_allowed_date']}) 즉시 전환 확인")
 
     # 4. 예약 허용 기간 내 정상 예약 테스트 (오늘 날짜)
     valid_date = window['today']
@@ -187,10 +194,11 @@ def run_wtt():
     out2 = sock2.wfile.getvalue().decode('utf-8', errors='ignore')
     assert '[InternetShortcut]' in out2, "/download-shortcut 내용 오류"
 
-    # 순수 크롬 바로가기 / 사파리 바로가기 (1번 스크린샷) 검증
+    # 순수 크롬 바로가기 / 사파리 바로가기 (1번 스크린샷) 및 일요일 0시 실시간 오픈 감시자 검증
     assert 'executeChromeShortcut()' in index_html_text and 'executeSafariShortcut()' in index_html_text, "크롬/사파리 바로가기 선택 버튼 누락"
     assert '/safari-guide.jpg' in index_html_text and os.path.exists(os.path.join(server.PUBLIC_DIR, 'safari-guide.jpg')), "사파리 1번 스크린샷 누락"
     assert 'rel="manifest"' not in index_html_text, "PWA manifest 링크가 잔존함"
+    assert 'initMidnightResetWatcher' in app_js_text and 'checkAndApplyMidnightRollover' in app_js_text and 'calcMaxAllowedDate' in app_js_text, "일요일 0시 실시간 오픈 감시자 함수 누락"
 
     print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 

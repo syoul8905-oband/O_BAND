@@ -6,17 +6,18 @@ const API_BASE = '';
 let todayStr = getTodayString();
 let selectedDate = todayStr;
 
-// 캘린더 표시 상태
-let calYear = new Date().getFullYear();
-let calMonth = new Date().getMonth() + 1; // 1 ~ 12
+// 캘린더 표시 상태 (한국 표준시 KST 기준)
+const _initKst = new Date(Date.now() + 9 * 3600 * 1000);
+let calYear = _initKst.getUTCFullYear();
+let calMonth = _initKst.getUTCMonth() + 1; // 1 ~ 12
 
-// 데이터 캐시
+// 데이터 캐시 (0초 즉시 렌더링 시에도 일요일 기준 2주 마감일을 즉시 계산하여 잠금 오작동 원천 차단)
 let bookingWindow = {
   today: todayStr,
-  max_allowed_date: todayStr,
+  max_allowed_date: calcMaxAllowedDate(todayStr, 2, 0),
   open_weeks: 2,
   reset_day: 0,
-  quick_teams: '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습',
+  quick_teams: '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습',
   description: ''
 };
 let monthReservations = [];
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateAdminHeaderUI();
     initCalendarSwipe();
     initSleepModeTracker();
+    initMidnightResetWatcher();
 
     // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
     renderCalendar();
@@ -127,13 +129,74 @@ function initCalendarSwipe() {
   }, { passive: true });
 }
 
-// 날짜 헬퍼
+// 날짜 헬퍼 (한국 표준시 KST UTC+9 기준 고정)
 function getTodayString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const year = kst.getUTCFullYear();
+  const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(kst.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// 일요일(resetDay=0) 00:00 기준 예약 허용 마감일(다음 주 토요일) 로컬 즉시 계산
+function calcMaxAllowedDate(baseDateStr, openWeeks = 2, resetDay = 0) {
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const jsDay = dt.getUTCDay(); // 0: 일요일 ~ 6: 토요일
+  const daysSinceReset = (jsDay - Number(resetDay) + 7) % 7;
+  const maxDt = new Date(Date.UTC(y, m - 1, d - daysSinceReset + (Number(openWeeks) * 7) - 1));
+  const my = maxDt.getUTCFullYear();
+  const mm = String(maxDt.getUTCMonth() + 1).padStart(2, '0');
+  const md = String(maxDt.getUTCDate()).padStart(2, '0');
+  return `${my}-${mm}-${md}`;
+}
+
+// 매주 일요일 00:00:00 정각 실시간 자동 오픈 감시자 (새로고침 없이도 0시 정각 즉시 잠금 해제)
+let midnightWatcherTimer = null;
+
+async function checkAndApplyMidnightRollover() {
+  const currentToday = getTodayString();
+  if (currentToday !== todayStr) {
+    const prevMax = bookingWindow.max_allowed_date;
+    todayStr = currentToday;
+    bookingWindow.today = currentToday;
+    bookingWindow.max_allowed_date = calcMaxAllowedDate(
+      currentToday,
+      bookingWindow.open_weeks || 2,
+      bookingWindow.reset_day || 0
+    );
+
+    // 즉시 화면 잠금 해제 반영 후 서버 설정 동기화
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+    await loadBookingWindow();
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+
+    if (bookingWindow.max_allowed_date > prevMax) {
+      showToast(`🎉 일요일 0시 정각! 새로운 예약 가능 날짜(~${bookingWindow.max_allowed_date})가 오픈되었습니다!`);
+    }
+    return true;
+  }
+  return false;
+}
+
+function initMidnightResetWatcher() {
+  if (midnightWatcherTimer) clearInterval(midnightWatcherTimer);
+  midnightWatcherTimer = setInterval(() => {
+    if (!isSleeping) {
+      checkAndApplyMidnightRollover();
+    }
+  }, 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkAndApplyMidnightRollover();
+    }
+  });
+  window.addEventListener('focus', () => {
+    checkAndApplyMidnightRollover();
+  });
 }
 
 function formatDateDisplay(dateStr) {
@@ -154,13 +217,14 @@ function formatDateDisplay(dateStr) {
 
 // 1. 예약 윈도우 규칙 불러오기
 function getNextResetDateStr() {
-  const d = new Date();
-  const day = d.getDay(); // 0(일) ~ 6(토)
+  const [y, m, d] = getTodayString().split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const day = dt.getUTCDay(); // 0(일) ~ 6(토)
   const diff = day === 0 ? 7 : (7 - day);
-  const nextSun = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
-  const m = String(nextSun.getMonth() + 1).padStart(2, '0');
-  const dd = String(nextSun.getDate()).padStart(2, '0');
-  return `${m}월 ${dd}일(일)`;
+  const nextSun = new Date(Date.UTC(y, m - 1, d + diff));
+  const mm = String(nextSun.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(nextSun.getUTCDate()).padStart(2, '0');
+  return `${mm}월 ${dd}일(일) 00:00`;
 }
 
 async function loadBookingWindow() {
@@ -295,13 +359,18 @@ function createDayCell(dayNum, dateStr, isOtherMonth) {
   cell.appendChild(resContainer);
 
   // 셀 클릭 이벤트
-  cell.onclick = () => {
-    if (isLocked) {
+  cell.onclick = async () => {
+    // 0시 정각 자정 경과 즉시 감지 및 잠금 실시간 해제
+    if (getTodayString() !== todayStr) {
+      await checkAndApplyMidnightRollover();
+    }
+    const nowLocked = dateStr > bookingWindow.max_allowed_date;
+    if (nowLocked) {
       if (isAdmin) {
         // 관리자 모드 가동 시 잠긴 날짜 프리패스 선택 허용
         console.log(`[Admin Bypass] 잠긴 날짜(${dateStr}) 관리자 권한 선택`);
       } else {
-        alert(`🔒 아직 예약이 오픈되지 않은 기간입니다.\n\n매주 일요일에 다음 주 예약이 오픈됩니다!\n(현재 예약 가능 기간: ~ ${bookingWindow.max_allowed_date}까지)`);
+        alert(`🔒 아직 예약이 오픈되지 않은 기간입니다.\n\n매주 일요일 0시에 다음 주 예약이 오픈됩니다!\n(현재 예약 가능 기간: ~ ${bookingWindow.max_allowed_date}까지)`);
         return;
       }
     }
@@ -329,10 +398,12 @@ async function changeMonth(delta) {
 }
 
 async function goToToday() {
-  const now = new Date();
-  calYear = now.getFullYear();
-  calMonth = now.getMonth() + 1;
+  todayStr = getTodayString();
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  calYear = kst.getUTCFullYear();
+  calMonth = kst.getUTCMonth() + 1;
   selectedDate = todayStr;
+  await loadBookingWindow();
   await loadMonthData(calYear, calMonth);
   renderCalendar();
   renderDayTimeline(selectedDate);
@@ -1387,8 +1458,10 @@ async function wakeFromSleep() {
   isSleeping = false;
   resetSleepTimer();
 
-  // 최신 데이터 갱신
+  // 최신 데이터 및 자정(0시) 경과 시 오픈 기간 즉시 갱신
   try {
+    await checkAndApplyMidnightRollover();
+    await loadBookingWindow();
     await loadMonthData(calYear, calMonth);
     renderCalendar();
     renderDayTimeline(selectedDate);
