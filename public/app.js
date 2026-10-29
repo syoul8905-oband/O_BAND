@@ -48,28 +48,10 @@ function checkKakaoBanner() {
   }
 }
 
-// 모바일 웹 접속 시 1초 앱 설치 배너 표출
-function checkPwaInstallBanner() {
-  const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
-                       window.matchMedia('(display-mode: standalone)').matches;
-  if (isStandalone) return;
-  if (sessionStorage.getItem('pwa_banner_dismissed') === '1') return;
+// 상단 1초 앱 설치 배너 비활성화 (사용자 지시로 삭제 완료)
+function checkPwaInstallBanner() {}
 
-  const ua = navigator.userAgent || '';
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-  const isKakao = /KAKAOTALK/i.test(ua);
-
-  if (isMobile && !isKakao) {
-    const banner = document.getElementById('pwaInstallBanner');
-    if (banner) banner.style.display = 'flex';
-  }
-}
-
-function dismissPwaBanner() {
-  sessionStorage.setItem('pwa_banner_dismissed', '1');
-  const banner = document.getElementById('pwaInstallBanner');
-  if (banner) banner.style.display = 'none';
-}
+function dismissPwaBanner() {}
 
 // 앱 시작 즉시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
