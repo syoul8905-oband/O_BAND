@@ -22,9 +22,18 @@
           </div>
         </div>
       </div>
-      <div class="header-status" id="connectionStatus" onclick="openShareModal()">
-        <span class="status-dot"></span>
-        <span id="statusText">LTE/5G 모바일</span>
+      <div class="header-actions-group">
+        <button class="btn-admin-header" id="btnAdminLogin" onclick="openAdminLoginModal()">
+          <span>👑 관리자</span>
+        </button>
+        <div class="admin-header-active" id="adminHeaderBadge">
+          <span class="admin-badge-glow">👑 관리자 ON</span>
+          <button class="btn-admin-logout" onclick="logoutAdmin()">해제</button>
+        </div>
+        <div class="header-status" id="connectionStatus" onclick="openShareModal()">
+          <span class="status-dot"></span>
+          <span id="statusText">LTE/5G</span>
+        </div>
       </div>
     </header>
 
@@ -445,6 +454,73 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- [모달 8] 관리자 모드 인증 모달 -->
+  <div class="modal-overlay" id="adminLoginModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">👑 관리자 모드 활성화</div>
+        <button class="sheet-close-btn" onclick="closeModal('adminLoginModal')">✕</button>
+      </div>
+      <form id="adminLoginForm" onsubmit="submitAdminLogin(event)">
+        <div style="font-size:13px; color:var(--text-sub); margin-bottom:14px; line-height:1.5;">
+          관리자 비밀번호를 입력하시면 <strong>합주 강제 취소</strong> 및 <strong>부원 정보 수정/삭제</strong> 권한이 활성화됩니다.
+        </div>
+        <div class="form-group">
+          <label class="form-label">관리자 비밀번호 (PIN)</label>
+          <input type="password" maxlength="4" class="form-input" id="adminInputPin" placeholder="기본 PIN: 9999" required autofocus>
+        </div>
+        <button type="submit" class="btn-submit" style="background:linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">관리자 모드 실행</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 9] 부원 정보 수정 모달 (관리자 전용) -->
+  <div class="modal-overlay" id="editMemberModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">✏️ 부원 정보 수정 (관리자)</div>
+        <button class="sheet-close-btn" onclick="closeModal('editMemberModal')">✕</button>
+      </div>
+      <form id="editMemberForm" onsubmit="submitEditMember(event)">
+        <input type="hidden" id="editMemId">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">부원 이름</label>
+            <input type="text" class="form-input" id="editMemName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">담당 파트</label>
+            <select class="form-select" id="editMemPart" required>
+              <option value="보컬">보컬 🎤</option>
+              <option value="일렉기타">일렉기타 🎸</option>
+              <option value="어쿠스틱기타">통기타 🪕</option>
+              <option value="베이스">베이스 🎸</option>
+              <option value="드럼">드럼 🥁</option>
+              <option value="건반">건반 🎹</option>
+              <option value="기타/유닛">기타/유닛 🎶</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">연락처</label>
+            <input type="tel" class="form-input" id="editMemPhone">
+          </div>
+          <div class="form-group">
+            <label class="form-label">직책 / 역할</label>
+            <select class="form-select" id="editMemRole">
+              <option value="부원">일반 부원</option>
+              <option value="밴드장">밴드장 (리더)</option>
+              <option value="총무">총무</option>
+              <option value="악기장">악기장</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-submit">부원 정보 저장</button>
+      </form>
     </div>
   </div>
 

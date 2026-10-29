@@ -20,8 +20,27 @@ let bookingWindow = {
 };
 let monthReservations = [];
 
+// 관리자 모드 상태
+let adminPin = sessionStorage.getItem('oppaen_admin_pin') || '';
+let isAdmin = Boolean(adminPin);
+
+function updateAdminHeaderUI() {
+  const btnLogin = document.getElementById('btnAdminLogin');
+  const badgeActive = document.getElementById('adminHeaderBadge');
+  if (!btnLogin || !badgeActive) return;
+
+  if (isAdmin) {
+    btnLogin.style.display = 'none';
+    badgeActive.style.display = 'flex';
+  } else {
+    btnLogin.style.display = 'flex';
+    badgeActive.style.display = 'none';
+  }
+}
+
 // 초기화
 document.addEventListener('DOMContentLoaded', async () => {
+  updateAdminHeaderUI();
   initTimeOptions();
   await loadBookingWindow();
   await loadMonthData(calYear, calMonth);
@@ -269,9 +288,15 @@ function renderDayTimeline(dateStr) {
         ${r.purpose ? `<div class="timeline-sub">💡 ${escapeHtml(r.purpose)}</div>` : ''}
       </div>
       <div>
-        <button class="btn-cancel-res" onclick="openCancelModal(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
-          취소
-        </button>
+        ${isAdmin ? `
+          <button class="btn-force-cancel" onclick="adminForceCancel(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
+            👑 강제취소
+          </button>
+        ` : `
+          <button class="btn-cancel-res" onclick="openCancelModal(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
+            취소
+          </button>
+        `}
       </div>
     </div>
   `).join('');
@@ -537,8 +562,14 @@ async function submitNotice(e) {
 }
 
 async function deleteNotice(id) {
-  const pin = prompt('공지 작성 시 입력했던 4자리 비밀번호(PIN)를 입력하세요:');
-  if (!pin) return;
+  let pin = '';
+  if (isAdmin) {
+    if (!confirm('관리자 권한으로 이 공지사항을 삭제하시겠습니까?')) return;
+    pin = adminPin;
+  } else {
+    pin = prompt('공지 작성 시 입력했던 4자리 비밀번호(PIN)를 입력하세요:');
+    if (!pin) return;
+  }
 
   try {
     const res = await fetch(`${API_BASE}/api/notices/delete`, {
@@ -555,6 +586,137 @@ async function deleteNotice(id) {
     loadNotices();
   } catch (err) {
     alert(`오류: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
+// 관리자 전용 제어 함수들 (Admin Mode Functions)
+// -------------------------------------------------------------
+function openAdminLoginModal() {
+  document.getElementById('adminInputPin').value = '';
+  openModal('adminLoginModal');
+}
+
+async function submitAdminLogin(e) {
+  e.preventDefault();
+  const pin = document.getElementById('adminInputPin').value.trim();
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: pin })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.message || '관리자 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    adminPin = pin;
+    isAdmin = true;
+    sessionStorage.setItem('oppaen_admin_pin', pin);
+    updateAdminHeaderUI();
+    closeModal('adminLoginModal');
+    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소 및 부원 수정/삭제 권한이 부여되었습니다.');
+    renderDayTimeline(selectedDate);
+    loadMembers();
+  } catch (err) {
+    alert(`오류: ${err.message}`);
+  }
+}
+
+function logoutAdmin() {
+  if (!confirm('관리자 모드를 해제하시겠습니까?')) return;
+  sessionStorage.removeItem('oppaen_admin_pin');
+  adminPin = '';
+  isAdmin = false;
+  updateAdminHeaderUI();
+  alert('관리자 모드가 해제되었습니다.');
+  renderDayTimeline(selectedDate);
+  loadMembers();
+}
+
+async function adminForceCancel(id, timeRange, name) {
+  if (!confirm(`[관리자 권한 강제 취소]\n\n${name}님의 예약(${timeRange})을 강제 취소하시겠습니까?\n취소 시 해당 타임슬롯이 즉시 반환됩니다.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(id), pin: adminPin })
+    });
+    const result = await res.json();
+    if (!result.success) {
+      alert(result.message || '취소 실패');
+      return;
+    }
+    alert(result.message);
+    await loadMonthData(calYear, calMonth);
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+  } catch (err) {
+    alert(`오류: ${err.message}`);
+  }
+}
+
+function openEditMemberModal(id, name, part, phone, role) {
+  document.getElementById('editMemId').value = id;
+  document.getElementById('editMemName').value = name;
+  document.getElementById('editMemPart').value = part;
+  document.getElementById('editMemPhone').value = phone || '';
+  document.getElementById('editMemRole').value = role || '부원';
+  openModal('editMemberModal');
+}
+
+async function submitEditMember(e) {
+  e.preventDefault();
+  const body = {
+    id: Number(document.getElementById('editMemId').value),
+    name: document.getElementById('editMemName').value.trim(),
+    part: document.getElementById('editMemPart').value,
+    phone: document.getElementById('editMemPhone').value.trim(),
+    role: document.getElementById('editMemRole').value,
+    pin: adminPin
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/members/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const result = await res.json();
+    if (!result.success) {
+      alert(result.message || '수정 실패');
+      return;
+    }
+    alert(result.message);
+    closeModal('editMemberModal');
+    loadMembers();
+  } catch (err) {
+    alert(`수정 오류: ${err.message}`);
+  }
+}
+
+async function deleteMember(id, name) {
+  if (!confirm(`정말 '${name}' 부원을 명부에서 삭제하시겠습니까?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/members/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, pin: adminPin })
+    });
+    const result = await res.json();
+    if (!result.success) {
+      alert(result.message || '삭제 실패');
+      return;
+    }
+    alert(result.message);
+    loadMembers();
+  } catch (err) {
+    alert(`삭제 오류: ${err.message}`);
   }
 }
 
@@ -664,8 +826,14 @@ async function loadMembers() {
             ${escapeHtml(m.name)}
             ${m.role && m.role !== '부원' ? `<span class="member-role">[${m.role}]</span>` : ''}
           </div>
-          <div class="member-part">${m.part}</div>
+          <div class="member-part">${m.part} ${m.phone ? `<span style="font-size:10px;color:var(--text-dim);">(${escapeHtml(m.phone)})</span>` : ''}</div>
         </div>
+        ${isAdmin ? `
+          <div class="member-card-admin-actions">
+            <button class="btn-mem-action edit" title="부원 수정" onclick="openEditMemberModal(${m.id}, '${escapeHtml(m.name)}', '${escapeHtml(m.part)}', '${escapeHtml(m.phone || '')}', '${escapeHtml(m.role || '부원')}')">✏️</button>
+            <button class="btn-mem-action del" title="부원 삭제" onclick="deleteMember(${m.id}, '${escapeHtml(m.name)}')">🗑️</button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
   } catch (err) {

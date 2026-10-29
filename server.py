@@ -421,7 +421,12 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # 마스터 관리자 PIN '9999' 또는 등록된 PIN 검증
-            if res['pin'] != pin and pin != '9999':
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            admin_row = cur.fetchone()
+            admin_pin = admin_row['setting_value'] if admin_row else '9999'
+
+            is_admin = (pin == admin_pin or pin == '9999')
+            if res['pin'] != pin and not is_admin:
                 conn.close()
                 self.send_json({'success': False, 'message': '비밀번호(PIN)가 일치하지 않습니다.'}, 403)
                 return
@@ -429,7 +434,8 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             cur.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", (res_id,))
             conn.commit()
             conn.close()
-            self.send_json({'success': True, 'message': f'{res["member_name"]}님의 예약이 정상적으로 취소되었습니다.'})
+            msg = f'[관리자 강제취소] {res["member_name"]}님의 예약이 취소되었습니다.' if is_admin else f'{res["member_name"]}님의 예약이 정상적으로 취소되었습니다.'
+            self.send_json({'success': True, 'message': msg})
             return
 
         # 3. 공지사항 등록: POST /api/notices
@@ -473,7 +479,11 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({'success': False, 'message': '공지사항을 찾을 수 없습니다.'}, 404)
                 return
 
-            if row['pin'] != pin and pin != '9999':
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            admin_row = cur.fetchone()
+            admin_pin = admin_row['setting_value'] if admin_row else '9999'
+
+            if row['pin'] != pin and pin != admin_pin and pin != '9999':
                 conn.close()
                 self.send_json({'success': False, 'message': '비밀번호(PIN)가 일치하지 않습니다.'}, 403)
                 return
@@ -566,6 +576,90 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             conn.commit()
             conn.close()
             self.send_json({'success': True, 'message': '예약 설정이 성공적으로 변경되었습니다!', 'window': get_booking_window()})
+            return
+
+        # 8. 관리자 PIN 검증: POST /api/admin/verify
+        if path == '/api/admin/verify':
+            pin = str(body.get('pin', '')).strip()
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            row = cur.fetchone()
+            admin_pin = row['setting_value'] if row else '9999'
+            conn.close()
+
+            if pin == admin_pin or pin == '9999':
+                self.send_json({'success': True, 'message': '관리자 인증 완료'})
+            else:
+                self.send_json({'success': False, 'message': '관리자 비밀번호가 일치하지 않습니다.'}, 403)
+            return
+
+        # 9. 부원 정보 수정 (관리자 전용): POST /api/members/update
+        if path == '/api/members/update':
+            pin = str(body.get('pin', '')).strip()
+            mem_id = body.get('id')
+            name = body.get('name', '').strip()
+            part = body.get('part', '').strip()
+            phone = body.get('phone', '').strip()
+            role = body.get('role', '부원').strip()
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            row = cur.fetchone()
+            admin_pin = row['setting_value'] if row else '9999'
+
+            if pin != admin_pin and pin != '9999':
+                conn.close()
+                self.send_json({'success': False, 'message': '관리자 권한이 필요합니다.'}, 403)
+                return
+
+            if not mem_id or not name or not part:
+                conn.close()
+                self.send_json({'success': False, 'message': '부원 ID, 이름, 파트는 필수입니다.'}, 400)
+                return
+
+            try:
+                cur.execute('''
+                    UPDATE members SET name = ?, part = ?, phone = ?, role = ?
+                    WHERE id = ?
+                ''', (name, part, phone, role, mem_id))
+                conn.commit()
+                conn.close()
+                self.send_json({'success': True, 'message': f'{name} 부원 정보가 수정되었습니다.'})
+            except sqlite3.IntegrityError:
+                conn.close()
+                self.send_json({'success': False, 'message': '이미 동일한 이름의 다른 부원이 존재합니다.'}, 409)
+            return
+
+        # 10. 부원 삭제 (관리자 전용): POST /api/members/delete
+        if path == '/api/members/delete':
+            pin = str(body.get('pin', '')).strip()
+            mem_id = body.get('id')
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            row = cur.fetchone()
+            admin_pin = row['setting_value'] if row else '9999'
+
+            if pin != admin_pin and pin != '9999':
+                conn.close()
+                self.send_json({'success': False, 'message': '관리자 권한이 필요합니다.'}, 403)
+                return
+
+            cur.execute("SELECT name FROM members WHERE id = ?", (mem_id,))
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                self.send_json({'success': False, 'message': '해당 부원을 찾을 수 없습니다.'}, 404)
+                return
+
+            mem_name = row['name']
+            cur.execute("DELETE FROM members WHERE id = ?", (mem_id,))
+            conn.commit()
+            conn.close()
+            self.send_json({'success': True, 'message': f'{mem_name} 부원이 명부에서 삭제되었습니다.'})
             return
 
         self.send_json({'success': False, 'message': '지원하지 않는 API 경로입니다.'}, 404)

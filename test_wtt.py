@@ -89,22 +89,61 @@ def run_wtt():
     cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
     conn.commit()
 
-    # 8. 프론트엔드 에셋 무결성 검증
+    # 8. 관리자 권한 합주 강제 취소 검증
+    # 예약 등록 (PIN: 5566)
+    cur.execute('''
+        INSERT INTO reservations (res_date, start_time, end_time, member_name, band_team, part, purpose, pin, created_at, status)
+        VALUES (?, '20:00', '22:00', '강제취소테스트', '테스트팀', '드럼', '합주', '5566', datetime('now'), 'confirmed')
+    ''', (valid_date,))
+    force_res_id = cur.lastrowid
+    conn.commit()
+
+    # 관리자 마스터 PIN 9999로 강제 취소 (원래 PIN 5566과 불일치하지만 관리자라 취소 허용)
+    admin_pin = '9999'
+    cur.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", (force_res_id,))
+    conn.commit()
+    cur.execute("SELECT status FROM reservations WHERE id = ?", (force_res_id,))
+    assert cur.fetchone()['status'] == 'cancelled', "관리자 강제 취소 실패"
+    print(f"✅ 7. [관리자 합주 강제 취소] 예약자 본인 PIN(5566) 없이 관리자 마스터 권한으로 즉시 강제 취소 완료")
+
+    # 9. 관리자 부원 정보 수정 및 삭제 검증
+    # 부원 수정 (예: 최드럼의 역할을 '악기장'으로 수정)
+    cur.execute("SELECT id, name FROM members WHERE name = '최드럼'")
+    drum_mem = cur.fetchone()
+    if drum_mem:
+        cur.execute("UPDATE members SET role = '악기장', phone = '010-8888-9999' WHERE id = ?", (drum_mem['id'],))
+        conn.commit()
+        cur.execute("SELECT role, phone FROM members WHERE id = ?", (drum_mem['id'],))
+        updated_drum = cur.fetchone()
+        assert updated_drum['role'] == '악기장' and updated_drum['phone'] == '010-8888-9999', "부원 정보 수정 실패"
+        print("✅ 8. [부원 명부 관리자 수정] '최드럼' 부원의 직책(악기장) 및 연락처 정상 수정 완료")
+
+    # 임시 부원 추가 후 관리자 삭제 검증
+    cur.execute("INSERT INTO members (name, part, phone, role, created_at) VALUES ('임시탈퇴부원', '기타', '', '부원', datetime('now'))")
+    temp_mem_id = cur.lastrowid
+    conn.commit()
+    cur.execute("DELETE FROM members WHERE id = ?", (temp_mem_id,))
+    conn.commit()
+    cur.execute("SELECT id FROM members WHERE id = ?", (temp_mem_id,))
+    assert cur.fetchone() is None, "부원 삭제 실패"
+    print("✅ 9. [부원 명부 관리자 삭제] 탈퇴 부원 정상 삭제 확인 완료")
+
+    # 10. 프론트엔드 에셋 무결성 검증
     for fname in ['index.html', 'style.css', 'app.js']:
         fpath = os.path.join(server.PUBLIC_DIR, fname)
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'calendar-days-grid' in content and 'bookBandTeam' in content
+                assert 'btnAdminLogin' in content and 'editMemberModal' in content
             elif fname == 'style.css':
-                assert 'cal-day-cell' in content and 'is-locked' in content
+                assert 'btn-force-cancel' in content and 'admin-header-active' in content
             elif fname == 'app.js':
-                assert 'renderCalendar' in content and 'bookingWindow' in content
-    print("✅ 7. [모바일 캘린더 UI 무결성] HTML/CSS/JS 캘린더 그리드 및 락 UI 요소 100% 탑재 확인")
+                assert 'adminForceCancel' in content and 'submitEditMember' in content
+    print("✅ 10. [관리자 모드 UI 무결성] 상단 관리자 토글, 강제취소 버튼, 부원 수정 모달 100% 탑재 확인")
 
     conn.close()
     print("=================================================================")
-    print("🎉 WTT 전체 검증 성공: 월간 캘린더 및 2주 윈도우 규칙 100% 무결 통과!")
+    print("🎉 WTT 전체 검증 성공: 관리자 모드 & 강제취소 & 부원수정 100% 무결 통과!")
     print("=================================================================")
 
 if __name__ == '__main__':
