@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>오늘부터 밴드부 (오뺀) - 모바일 전용</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1d27">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <!-- 상단 헤더 -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-logo">🎸</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="brand-title">오늘부터 밴드부</span>
+            <span class="brand-badge">오뺀</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-status" id="connectionStatus" onclick="openShareModal()">
+        <span class="status-dot"></span>
+        <span id="statusText">LTE/5G 모바일</span>
+      </div>
+    </header>
+
+    <!-- 1. 합주실 예약 탭 -->
+    <main id="tab-reservation" class="tab-content active">
+      <!-- 날짜 선택 스크롤러 -->
+      <div class="date-selector-bar" id="datePillContainer">
+        <!-- JS로 오늘부터 14일간 자동 렌더링 -->
+      </div>
+
+      <!-- 선택된 일자 정보 & 액션 -->
+      <div class="section-header">
+        <div>
+          <div class="section-title" id="currentDateTitle">📅 예약 현황</div>
+          <div style="font-size:12px; color:var(--text-dim);" id="currentDateSub">불러오는 중...</div>
+        </div>
+        <button class="section-action-btn" onclick="openCustomBookingModal()">
+          <span>➕ 직접 예약</span>
+        </button>
+      </div>
+
+      <!-- 타임슬롯 목록 -->
+      <div class="timeslot-list" id="timeslotList">
+        <div class="empty-state">
+          <div class="empty-icon">⏳</div>
+          <div class="empty-text">예약 일정을 불러오는 중입니다...</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 2. 공지사항 탭 -->
+    <main id="tab-notices" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">📢 밴드부 공지사항</div>
+        <button class="section-action-btn" onclick="openNoticeModal()">
+          <span>✏️ 공지 작성</span>
+        </button>
+      </div>
+      <div class="notice-list" id="noticeList">
+        <!-- JS 렌더링 -->
+      </div>
+    </main>
+
+    <!-- 3. 합주곡(세트리스트) 탭 -->
+    <main id="tab-setlist" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">🎵 합주곡 레퍼토리</div>
+        <button class="section-action-btn" onclick="openSetlistModal()">
+          <span>➕ 곡 추가</span>
+        </button>
+      </div>
+      <div id="setlistContainer">
+        <!-- JS 렌더링 -->
+      </div>
+    </main>
+
+    <!-- 4. 부원 명부 탭 -->
+    <main id="tab-members" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">👥 오뺀 부원 명부</div>
+        <button class="section-action-btn" onclick="openMemberModal()">
+          <span>➕ 부원 등록</span>
+        </button>
+      </div>
+      <div class="member-grid" id="memberGrid">
+        <!-- JS 렌더링 -->
+      </div>
+    </main>
+
+    <!-- 하단 바텀 네비게이션 바 -->
+    <nav class="bottom-nav">
+      <div class="nav-item active" data-tab="tab-reservation" onclick="switchTab('tab-reservation', this)">
+        <div class="nav-icon">📅</div>
+        <div>합주예약</div>
+      </div>
+      <div class="nav-item" data-tab="tab-notices" onclick="switchTab('tab-notices', this)">
+        <div class="nav-icon">📢</div>
+        <div>공지사항</div>
+      </div>
+      <div class="nav-item" data-tab="tab-setlist" onclick="switchTab('tab-setlist', this)">
+        <div class="nav-icon">🎵</div>
+        <div>합주곡</div>
+      </div>
+      <div class="nav-item" data-tab="tab-members" onclick="switchTab('tab-members', this)">
+        <div class="nav-icon">👥</div>
+        <div>부원명부</div>
+      </div>
+    </nav>
+  </div>
+
+  <!-- [모달 1] 합주실 예약 모달 -->
+  <div class="modal-overlay" id="bookingModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🎸 합주실 예약 등록</div>
+        <button class="sheet-close-btn" onclick="closeModal('bookingModal')">✕</button>
+      </div>
+      <form id="bookingForm" onsubmit="submitBooking(event)">
+        <div class="form-group">
+          <label class="form-label">예약 날짜</label>
+          <input type="date" class="form-input" id="bookDate" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">시작 시간</label>
+            <select class="form-select" id="bookStartTime" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">종료 시간</label>
+            <select class="form-select" id="bookEndTime" required></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">예약자 성함</label>
+            <input type="text" class="form-input" id="bookMemberName" placeholder="예: 김보컬" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">담당 파트</label>
+            <select class="form-select" id="bookPart">
+              <option value="보컬">보컬 🎤</option>
+              <option value="일렉기타">일렉기타 🎸</option>
+              <option value="어쿠스틱기타">통기타 🪕</option>
+              <option value="베이스">베이스 🎸</option>
+              <option value="드럼">드럼 🥁</option>
+              <option value="건반">건반 🎹</option>
+              <option value="전체">전체 파트 🎶</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">소속 / 팀 구분</label>
+          <select class="form-select" id="bookBandTeam">
+            <option value="전체합주">밴드부 전체 합주</option>
+            <option value="1팀(정기)">정기 1팀</option>
+            <option value="2팀(공연)">공연 2팀</option>
+            <option value="어쿠스틱유닛">어쿠스틱 유닛</option>
+            <option value="개인/파트연습">개인 / 파트 연습</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">합주 목적 / 연습곡</label>
+          <input type="text" class="form-input" id="bookPurpose" placeholder="예: 나는 나비, 한 페이지가 될 수 있게">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🔒 본인 확인 비밀번호 (PIN 숫자 4자리)</label>
+          <input type="password" maxlength="4" pattern="\d{4}" class="form-input" id="bookPin" placeholder="취소 시 사용할 숫자 4자리" required>
+        </div>
+        <button type="submit" class="btn-submit">예약 완료하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 2] 예약 취소 확인 모달 -->
+  <div class="modal-overlay" id="cancelModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🗑️ 합주실 예약 취소</div>
+        <button class="sheet-close-btn" onclick="closeModal('cancelModal')">✕</button>
+      </div>
+      <form id="cancelForm" onsubmit="submitCancel(event)">
+        <input type="hidden" id="cancelResId">
+        <div style="font-size:14px; color:var(--text-sub); margin-bottom:14px;" id="cancelTargetDesc">
+          예약을 취소하시겠습니까?
+        </div>
+        <div class="form-group">
+          <label class="form-label">예약 시 등록한 4자리 비밀번호(PIN)</label>
+          <input type="password" maxlength="4" pattern="\d{4}" class="form-input" id="cancelPin" placeholder="숫자 4자리" required>
+        </div>
+        <button type="submit" class="btn-submit" style="background:#ef4444; box-shadow:none;">예약 취소 확인</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 3] 새 공지 작성 모달 -->
+  <div class="modal-overlay" id="noticeModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">📢 새 공지사항 등록</div>
+        <button class="sheet-close-btn" onclick="closeModal('noticeModal')">✕</button>
+      </div>
+      <form id="noticeForm" onsubmit="submitNotice(event)">
+        <div class="form-group">
+          <label class="form-label">분류</label>
+          <select class="form-select" id="noticeCategory">
+            <option value="필독">📌 필독</option>
+            <option value="합주">🎵 합주 일정</option>
+            <option value="회비">💰 회비 공지</option>
+            <option value="행사">🎉 공연/행사</option>
+            <option value="일반">💬 일반 공지</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">공지 제목</label>
+          <input type="text" class="form-input" id="noticeTitle" placeholder="공지 제목을 입력해 주세요" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">공지 내용</label>
+          <textarea class="form-textarea" id="noticeContent" rows="5" placeholder="공지 내용을 입력해 주세요" required></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">작성자</label>
+            <input type="text" class="form-input" id="noticeAuthor" placeholder="예: 밴드장" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">작성자 PIN (4자리)</label>
+            <input type="password" maxlength="4" class="form-input" id="noticePin" placeholder="삭제용 4자리" required>
+          </div>
+        </div>
+        <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="noticeIsPinned" style="width:18px; height:18px; accent-color:var(--accent-purple);">
+          <label for="noticeIsPinned" style="font-size:13px; font-weight:700;">상단 중요 공지로 고정 (PIN)</label>
+        </div>
+        <button type="submit" class="btn-submit">공지 등록하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 4] 새 곡 추가 모달 -->
+  <div class="modal-overlay" id="setlistModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🎵 연습곡 추가</div>
+        <button class="sheet-close-btn" onclick="closeModal('setlistModal')">✕</button>
+      </div>
+      <form id="setlistForm" onsubmit="submitSetlist(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">곡명</label>
+            <input type="text" class="form-input" id="songTitle" placeholder="예: 나는 나비" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">아티스트</label>
+            <input type="text" class="form-input" id="songArtist" placeholder="예: YB" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Key (키)</label>
+            <input type="text" class="form-input" id="songKey" placeholder="예: A, 원키">
+          </div>
+          <div class="form-group">
+            <label class="form-label">템포 (BPM)</label>
+            <input type="text" class="form-input" id="songTempo" placeholder="예: 130 BPM">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">유튜브 참고 영상 링크</label>
+          <input type="url" class="form-input" id="songYoutube" placeholder="https://www.youtube.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">악보 / 코드 링크</label>
+          <input type="url" class="form-input" id="songSheet" placeholder="악보 또는 코드 링크 URL">
+        </div>
+        <div class="form-group">
+          <label class="form-label">파트별 메모</label>
+          <input type="text" class="form-input" id="songMemo" placeholder="예: 인트로 건반 솔로, 베이스 드롭">
+        </div>
+        <button type="submit" class="btn-submit">곡 등록하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 5] 부원 등록 모달 -->
+  <div class="modal-overlay" id="memberModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">👥 오뺀 부원 등록</div>
+        <button class="sheet-close-btn" onclick="closeModal('memberModal')">✕</button>
+      </div>
+      <form id="memberForm" onsubmit="submitMember(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">부원 이름</label>
+            <input type="text" class="form-input" id="memName" placeholder="예: 홍길동" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">담당 파트</label>
+            <select class="form-select" id="memPart" required>
+              <option value="보컬">보컬 🎤</option>
+              <option value="일렉기타">일렉기타 🎸</option>
+              <option value="어쿠스틱기타">어쿠스틱기타 🪕</option>
+              <option value="베이스">베이스 🎸</option>
+              <option value="드럼">드럼 🥁</option>
+              <option value="건반">건반 🎹</option>
+              <option value="기타/유닛">기타/유닛 🎶</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">연락처</label>
+            <input type="tel" class="form-input" id="memPhone" placeholder="010-0000-0000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">직책 / 역할</label>
+            <select class="form-select" id="memRole">
+              <option value="부원">일반 부원</option>
+              <option value="밴드장">밴드장 (리더)</option>
+              <option value="총무">총무</option>
+              <option value="악기장">악기장</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-submit">부원 등록하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- [모달 6] LTE/5G 접속 및 클라우드 배포 안내 모달 -->
+  <div class="modal-overlay" id="shareModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🌐 LTE/5G 모바일 접속 안내</div>
+        <button class="sheet-close-btn" onclick="closeModal('shareModal')">✕</button>
+      </div>
+      <div style="font-size:13px; line-height:1.6; color:var(--text-sub);">
+        <p style="margin-bottom:10px;">
+          <strong style="color:var(--text-main);">🔒 인프라 100% 완전 분리 완료:</strong><br>
+          기존 배송스케줄 시스템의 DB/트래픽과 단 1%도 겹치지 않는 독립 환경입니다.
+        </p>
+        <div style="background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:10px; padding:12px; margin-bottom:12px;">
+          <div style="font-size:12px; font-weight:700; color:var(--accent-cyan); margin-bottom:4px;">📱 모바일 공유용 24시간 클라우드 링크</div>
+          <div style="font-size:12px; color:var(--text-main); word-break:break-all;" id="cloudUrlDisplay">
+            https://oppaen-band.vercel.app (배포 준비 완료)
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--text-dim);">
+          카카오톡 단톡방에 링크를 공유하면 부원들이 어디서나 스마트폰으로 합주실을 예약하고 공지를 확인할 수 있습니다.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

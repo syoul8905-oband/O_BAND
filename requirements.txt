@@ -1,0 +1,4 @@
+# 오늘부터 밴드부 (오뺀) - Python 백엔드
+# 표준 라이브러리(http.server, sqlite3, json)만으로 실행 가능하므로 외부 필수 패키지 0개!
+# Render / Gunicorn 구동을 원할 경우 아래 패키지 사용 가능
+gunicorn>=21.2.0

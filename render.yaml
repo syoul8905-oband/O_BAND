@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: oppaen-band
+    env: python
+    buildCommand: "pip install -r requirements.txt || true"
+    startCommand: "python server.py"
+    envVars:
+      - key: PORT
+        value: 5500
