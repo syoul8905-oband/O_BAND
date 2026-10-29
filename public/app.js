@@ -77,14 +77,31 @@ function formatDateDisplay(dateStr) {
 }
 
 // 1. 예약 윈도우 규칙 불러오기
+function getNextResetDateStr() {
+  const d = new Date();
+  const day = d.getDay(); // 0(일) ~ 6(토)
+  const diff = day === 0 ? 7 : (7 - day);
+  const nextSun = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+  const m = String(nextSun.getMonth() + 1).padStart(2, '0');
+  const dd = String(nextSun.getDate()).padStart(2, '0');
+  return `${m}월 ${dd}일(일)`;
+}
+
 async function loadBookingWindow() {
   try {
     const res = await fetch(`${API_BASE}/api/settings`);
     const data = await res.json();
     if (data.success && data.window) {
       bookingWindow = data.window;
-      document.getElementById('windowNoticeText').textContent = 
-        `매주 일요일 기준 ${bookingWindow.open_weeks}주 (다음 주 토요일 ${bookingWindow.max_allowed_date}까지 예약 오픈)`;
+      const noticeEl = document.getElementById('windowNoticeText');
+      if (noticeEl) {
+        if (isAdmin) {
+          noticeEl.innerHTML = `👑 <strong>관리자 모드</strong>: 모든 날짜 선예약 가능 &nbsp;|&nbsp; <span style="text-decoration:underline; cursor:pointer;" onclick="openSettingsModal()">[⚙️ 오픈기간 설정]</span>`;
+        } else {
+          const nextReset = getNextResetDateStr();
+          noticeEl.textContent = `매주 일요일 리셋 (현재 ${bookingWindow.max_allowed_date}까지 오픈 / 다음 오픈: ${nextReset})`;
+        }
+      }
     }
   } catch (err) {
     console.warn('설정 로드 실패, 기본값 사용:', err);
@@ -202,8 +219,13 @@ function createDayCell(dayNum, dateStr, isOtherMonth) {
   // 셀 클릭 이벤트
   cell.onclick = () => {
     if (isLocked) {
-      alert(`🔒 아직 예약이 오픈되지 않은 기간입니다.\n\n매주 일요일에 다음 주 예약이 오픈됩니다!\n(현재 예약 가능 기간: ~ ${bookingWindow.max_allowed_date}까지)`);
-      return;
+      if (isAdmin) {
+        // 관리자 모드 가동 시 잠긴 날짜 프리패스 선택 허용
+        console.log(`[Admin Bypass] 잠긴 날짜(${dateStr}) 관리자 권한 선택`);
+      } else {
+        alert(`🔒 아직 예약이 오픈되지 않은 기간입니다.\n\n매주 일요일에 다음 주 예약이 오픈됩니다!\n(현재 예약 가능 기간: ~ ${bookingWindow.max_allowed_date}까지)`);
+        return;
+      }
     }
     selectedDate = dateStr;
     document.querySelectorAll('.cal-day-cell').forEach(c => c.classList.remove('selected'));
@@ -248,11 +270,21 @@ function renderDayTimeline(dateStr) {
   const btnBook = document.getElementById('btnBookSlot');
 
   if (isLocked) {
-    document.getElementById('selectedDateSub').innerHTML = `<span style="color:#f87171;">🔒 미오픈 (매주 일요일에 다음 주 순차 오픈)</span>`;
-    btnBook.disabled = true;
+    if (isAdmin) {
+      document.getElementById('selectedDateSub').innerHTML = `<span style="color:#fbbf24; font-weight:800;">👑 [관리자 권한] 미오픈 날짜 선예약/스케줄 등록 가능</span>`;
+      btnBook.disabled = false;
+    } else {
+      document.getElementById('selectedDateSub').innerHTML = `<span style="color:#f87171;">🔒 미오픈 (매주 일요일에 다음 주 순차 오픈)</span>`;
+      btnBook.disabled = true;
+    }
   } else if (isPast) {
-    document.getElementById('selectedDateSub').innerHTML = `<span style="color:var(--text-dim);">지난 일정입니다</span>`;
-    btnBook.disabled = true;
+    if (isAdmin) {
+      document.getElementById('selectedDateSub').innerHTML = `<span style="color:#fbbf24;">👑 [관리자 권한] 지난 일정 관리</span>`;
+      btnBook.disabled = false;
+    } else {
+      document.getElementById('selectedDateSub').innerHTML = `<span style="color:var(--text-dim);">지난 일정입니다</span>`;
+      btnBook.disabled = true;
+    }
   } else {
     document.getElementById('selectedDateSub').innerHTML = `<span style="color:var(--success);">✨ 원하는 시간에 자유롭게 예약 가능</span>`;
     btnBook.disabled = false;
@@ -262,12 +294,21 @@ function renderDayTimeline(dateStr) {
   const dayRes = monthReservations.filter(r => r.res_date === dateStr);
 
   if (dayRes.length === 0) {
+    let emptyHint = '';
+    if (isAdmin) {
+      emptyHint = '<span style="color:#fbbf24;">[➕ 합주 예약] 버튼을 눌러 관리자 선예약을 등록할 수 있습니다.</span>';
+    } else if (isLocked) {
+      emptyHint = '<span style="color:#f87171;">🔒 매주 일요일에 예약이 순차 오픈됩니다.</span>';
+    } else if (!isPast) {
+      emptyHint = '<span style="color:#c084fc;">[➕ 합주 예약] 버튼을 눌러 먼저 예약해 보세요!</span>';
+    }
+
     listEl.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🎵</div>
         <div class="empty-text">
           등록된 합주 예약이 없습니다.<br>
-          ${!isLocked && !isPast ? '<span style="color:#c084fc;">[➕ 합주 예약] 버튼을 눌러 먼저 예약해 보세요!</span>' : ''}
+          ${emptyHint}
         </div>
       </div>
     `;
@@ -514,7 +555,7 @@ function openBookingModalForSelectedDate() {
   document.getElementById('bookMemberName').value = '';
   document.getElementById('bookBandTeam').value = '';
   document.getElementById('bookPurpose').value = '';
-  document.getElementById('bookPin').value = '';
+  document.getElementById('bookPin').value = isAdmin ? (adminPin || '9999') : '';
   
   refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
@@ -600,7 +641,7 @@ async function submitCancel(e) {
 function openSettingsModal() {
   document.getElementById('cfgOpenWeeks').value = String(bookingWindow.open_weeks || 2);
   document.getElementById('cfgResetDay').value = String(bookingWindow.reset_day || 0);
-  document.getElementById('cfgAdminPin').value = '';
+  document.getElementById('cfgAdminPin').value = isAdmin ? (adminPin || '9999') : '';
   openModal('settingsModal');
 }
 
@@ -763,7 +804,9 @@ async function submitAdminLogin(e) {
     sessionStorage.setItem('oppaen_admin_pin', pin);
     updateAdminHeaderUI();
     closeModal('adminLoginModal');
-    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소 및 부원 수정/삭제 권한이 부여되었습니다.');
+    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소, 부원 수정/삭제 및 전체 날짜 선예약/기간 설정 권한이 부여되었습니다.');
+    await loadBookingWindow();
+    renderCalendar();
     renderDayTimeline(selectedDate);
     loadMembers();
   } catch (err) {
@@ -771,13 +814,15 @@ async function submitAdminLogin(e) {
   }
 }
 
-function logoutAdmin() {
+async function logoutAdmin() {
   if (!confirm('관리자 모드를 해제하시겠습니까?')) return;
   sessionStorage.removeItem('oppaen_admin_pin');
   adminPin = '';
   isAdmin = false;
   updateAdminHeaderUI();
   alert('관리자 모드가 해제되었습니다.');
+  await loadBookingWindow();
+  renderCalendar();
   renderDayTimeline(selectedDate);
   loadMembers();
 }

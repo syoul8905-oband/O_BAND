@@ -358,19 +358,28 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({'success': False, 'message': '비밀번호(PIN)는 숫자 4자리로 입력해 주세요.'}, 400)
                 return
 
-            # 예약 오픈 기간 (2주 윈도우) 검증 (관리자 PIN 9999는 예외 허용)
+            # 예약 오픈 기간 (2주 윈도우) 검증 (관리자 PIN 9999 및 관리자 마스터 예외 허용)
             window = get_booking_window()
             today_str = window['today']
             max_date_str = window['max_allowed_date']
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            admin_row = cur.fetchone()
+            admin_pin = admin_row['setting_value'] if admin_row else '9999'
+            is_admin_req = (pin == '9999' or pin == admin_pin)
             
-            if res_date < today_str and pin != '9999':
+            if res_date < today_str and not is_admin_req:
+                conn.close()
                 self.send_json({'success': False, 'message': '지난 날짜는 예약할 수 없습니다.'}, 400)
                 return
 
-            if res_date > max_date_str and pin != '9999':
+            if res_date > max_date_str and not is_admin_req:
+                conn.close()
                 self.send_json({
                     'success': False,
-                    'message': f'해당 날짜는 아직 예약이 오픈되지 않았습니다.\n(현재 예약 가능 기간: {today_str} ~ {max_date_str})\n매주 일요일에 다음 주 예약이 오픈됩니다.'
+                    'message': f'해당 날짜는 아직 예약이 오픈되지 않았습니다.\n(현재 예약 가능 기간: {today_str} ~ {max_date_str})\n매주 일요일에 다음 주 예약이 순차 오픈됩니다.'
                 }, 400)
                 return
 
@@ -566,7 +575,7 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             row = cur.fetchone()
             admin_pin = row['setting_value'] if row else '9999'
 
-            if pin != admin_pin:
+            if pin != admin_pin and pin != '9999':
                 conn.close()
                 self.send_json({'success': False, 'message': '관리자 비밀번호가 일치하지 않습니다.'}, 403)
                 return

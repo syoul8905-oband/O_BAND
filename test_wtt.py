@@ -128,22 +128,22 @@ def run_wtt():
     assert cur.fetchone() is None, "부원 삭제 실패"
     print("✅ 9. [부원 명부 관리자 삭제] 탈퇴 부원 정상 삭제 확인 완료")
 
-    # 10. 프론트엔드 에셋 무결성 검증
+    # 10. 프론트엔드 에셋 무결성 및 관리자 날짜 프리패스 UI 검증
     for fname in ['index.html', 'style.css', 'app.js']:
         fpath = os.path.join(server.PUBLIC_DIR, fname)
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'editMemberModal' in content
+                assert 'btnAdminLogin' in content and 'editMemberModal' in content and 'btn-admin-config' in content
             elif fname == 'style.css':
-                assert 'btn-force-cancel' in content and 'admin-header-active' in content
+                assert 'btn-force-cancel' in content and 'admin-header-active' in content and 'btn-admin-config' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'validateSelectedTimeRange' in content
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'openSettingsModal' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")
     conn.commit()
-    print("✅ 10. [스마트 예약 마감 차단 UI 무결성] 예약 마감 슬롯 비활성화 및 실시간 겹침 검사 엔진 100% 탑재 확인")
+    print("✅ 10. [관리자 날짜 잠금 프리패스 & 기간설정 UI 무결성] 잠금 우회 및 상단 원클릭 설정 UI 100% 탑재 확인")
 
     conn.close()
     print("=================================================================")

@@ -1071,6 +1071,22 @@ body {
   cursor: pointer;
 }
 
+.btn-admin-config {
+  background: rgba(251, 191, 36, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fef08a;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-admin-config:hover {
+  background: rgba(251, 191, 36, 0.4);
+}
+
 /* 관리자 모드 가동 시 타임라인 강제 취소 버튼 */
 .btn-force-cancel {
   background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);

@@ -28,6 +28,7 @@
         </button>
         <div class="admin-header-active" id="adminHeaderBadge">
           <span class="admin-badge-glow">👑 관리자 ON</span>
+          <button class="btn-admin-config" onclick="openSettingsModal()" title="예약 오픈 기간 설정">⚙️ 기간설정</button>
           <button class="btn-admin-logout" onclick="logoutAdmin()">해제</button>
         </div>
         <div class="header-status" id="connectionStatus" onclick="openShareModal()">
@@ -282,11 +283,19 @@
         </div>
         <div class="form-group">
           <label class="form-label">예약 오픈 범위 (주차 수)</label>
+          <div class="quick-chip-group" style="margin-bottom:8px;">
+            <button type="button" class="quick-chip" onclick="document.getElementById('cfgOpenWeeks').value='2'">2주 (기본)</button>
+            <button type="button" class="quick-chip" onclick="document.getElementById('cfgOpenWeeks').value='3'">3주 (추천)</button>
+            <button type="button" class="quick-chip" onclick="document.getElementById('cfgOpenWeeks').value='4'">4주 (1달)</button>
+            <button type="button" class="quick-chip" onclick="document.getElementById('cfgOpenWeeks').value='52'">전체 오픈</button>
+          </div>
           <select class="form-select" id="cfgOpenWeeks">
             <option value="1">1주 (당일이 속한 주 토요일까지)</option>
             <option value="2" selected>2주 (달력상 2줄: 이번 주 + 다음 주 토요일까지 / 기본값)</option>
             <option value="3">3주 (달력상 3줄: 다다음 주 토요일까지)</option>
             <option value="4">4주 (달력상 4줄: 한 달 전체)</option>
+            <option value="8">8주 (두 달 전체 오픈)</option>
+            <option value="52">52주 (1년 전체 상시 오픈)</option>
           </select>
         </div>
         <div class="form-group">
