@@ -10,11 +10,9 @@
   <meta name="theme-color" content="#1a1d27">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <link rel="stylesheet" href="style.css">
   <!-- PWA 설치 프롬프트 조기 캡처 & 카카오톡 인앱 브라우저 즉시 자동 탈출 -->
   <script>
@@ -51,9 +49,6 @@
         } else if (/Android/i.test(ua)) {
           var cleanUrl = currentUrl.replace(/^https?:\/\//i, '');
           window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end';
-          setTimeout(function() {
-            window.location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
-          }, 500);
         }
       }
     })();
