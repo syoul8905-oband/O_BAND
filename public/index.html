@@ -16,13 +16,34 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <link rel="stylesheet" href="style.css">
-  <!-- 카카오톡 인앱 브라우저 감지 시 외부 브라우저(크롬/사파리)로 즉시 자동 탈출 -->
+  <!-- PWA 설치 프롬프트 조기 캡처 & 카카오톡 인앱 브라우저 즉시 자동 탈출 -->
   <script>
+    window.deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      window.deferredInstallPrompt = e;
+      if (window.location.search.indexOf('action=chrome_shortcut') !== -1) {
+        try { navigator.sendBeacon('/api/shortcut-mode?mode=chrome'); } catch(err) {}
+        setTimeout(function() {
+          if (window.deferredInstallPrompt) {
+            window.deferredInstallPrompt.prompt().catch(function() {});
+          }
+        }, 400);
+      } else if (window.location.search.indexOf('action=install_app') !== -1) {
+        try { navigator.sendBeacon('/api/shortcut-mode?mode=app'); } catch(err) {}
+        setTimeout(function() {
+          if (window.deferredInstallPrompt) {
+            window.deferredInstallPrompt.prompt().catch(function() {});
+          }
+        }, 400);
+      }
+    });
     (function() {
       var ua = navigator.userAgent || '';
+      var isApple = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
       if (/KAKAOTALK/i.test(ua)) {
         var currentUrl = window.location.href;
-        if (/iPhone|iPad|iPod/i.test(ua)) {
+        if (isApple) {
           window.location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(currentUrl);
           setTimeout(function() {
             try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
@@ -525,11 +546,11 @@
     </div>
   </div>
 
-  <!-- [모달 8] 바탕화면 바로가기 만들기 모달 -->
+  <!-- [모달 8] 바탕화면 바로가기 선택 모달 (1. 전용 앱 설치 / 2. 크롬 바로가기 / 3. 사파리 바로가기) -->
   <div class="modal-overlay" id="shortcutModal">
     <div class="bottom-sheet shortcut-sheet">
       <div class="sheet-header">
-        <div class="sheet-title">📲 바탕화면 바로가기 추가</div>
+        <div class="sheet-title">📲 바탕화면 바로가기 만들기</div>
         <button class="sheet-close" onclick="closeModal('shortcutModal')">✕</button>
       </div>
       <div class="modal-body" style="padding: 16px 20px 24px;">
@@ -537,7 +558,7 @@
           <img src="/icon.svg" alt="오뺀" class="shortcut-hero-icon">
           <div class="shortcut-hero-info">
             <div class="shortcut-hero-title">오늘부터 밴드부 (오뺀)</div>
-            <div class="shortcut-hero-sub">별도 앱 설치 없이, 브라우저 마크가 달린 웹 바로가기로 스마트폰/PC 바탕화면에 바로 등록됩니다.</div>
+            <div class="shortcut-hero-sub">원하시는 바탕화면 추가 방식을 선택해 주세요.</div>
           </div>
         </div>
 
@@ -546,85 +567,49 @@
           <div style="font-size: 13px; font-weight: 800; color: #facc15; margin-bottom: 4px;">
             💬 카카오톡 인앱 브라우저 감지됨
           </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5; margin-bottom: 10px;">
-            카카오톡 내부에서는 보안상 바탕화면 바로가기 생성이 제한됩니다.<br>
-            아래 <strong>[크롬 / 사파리로 열기]</strong>를 누르시면 3초 만에 바로가기를 만드실 수 있습니다!
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn-shortcut-option-chrome" onclick="escapeKakaoToExternalBrowser('chrome')" style="flex: 1; padding: 10px; justify-content: center;">
-              <span style="font-size: 18px;">🌐</span>
-              <span style="font-size: 13px; font-weight: 700; color: #4ade80;">크롬으로 열기</span>
-            </button>
-            <button type="button" class="btn-shortcut-option-safari" onclick="escapeKakaoToExternalBrowser('safari')" style="flex: 1; padding: 10px; justify-content: center;">
-              <span style="font-size: 18px;">🍎</span>
-              <span style="font-size: 13px; font-weight: 700; color: #38bdf8;">사파리로 열기</span>
-            </button>
+          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">
+            아래 버튼을 누르시면 전용 브라우저로 자동 연결되어 즉시 진행됩니다!
           </div>
         </div>
 
-        <!-- 안드로이드 / 갤럭시 (크롬) 안내 카드 -->
-        <div id="androidGuideCard" style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 14px; padding: 14px 16px; margin: 12px 0; text-align: left;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 800; color: #4ade80; display: flex; align-items: center; gap: 6px;">
-              <span>🌐</span> <span>크롬 바로가기 추가 (앱 설치 X)</span>
+        <!-- 3대 핵심 선택창: 1. 전용 앱 설치 / 2. 크롬 바로가기 / 3. 사파리 바로가기 -->
+        <div class="shortcut-choice-container" style="display: flex; flex-direction: column; gap: 12px; margin: 16px 0 14px;">
+          <!-- 1. 전용 앱 설치 -->
+          <button type="button" class="btn-shortcut-option-app" id="btnAutoInstall" onclick="executeShortcutCreation()">
+            <span style="font-size: 26px;" id="btnAutoInstallIcon">📲</span>
+            <div style="flex: 1; text-align: left;">
+              <div style="font-size: 16px; font-weight: 800; color: #ffffff;" id="btnAutoInstallText">전용 앱 설치</div>
+              <div style="font-size: 12px; color: #e2e8f0; opacity: 0.9; margin-top: 2px;">원터치로 바탕화면에 오뺀 전용 앱 즉시 설치</div>
             </div>
-            <span style="font-size: 11px; background: rgba(34,197,94,0.2); color: #4ade80; padding: 2px 8px; border-radius: 20px; font-weight: 700;">갤럭시/안드로이드</span>
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.45; margin-bottom: 8px;">
-            사진의 <strong>에러코드.com</strong>처럼 크롬 마크가 달린 깔끔한 바로가기로 홈 화면에 등록됩니다.
-          </div>
-          <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #f1f5f9; line-height: 1.6;">
-            <div>1️⃣ 화면 우측 상단 <strong>점 3개 [ ⋮ ]</strong> 터치</div>
-            <div>2️⃣ 메뉴에서 <strong>[홈 화면에 추가]</strong> 터치 ➔ <strong>[추가]</strong> 누르면 끝!</div>
-          </div>
-        </div>
+            <span style="font-size: 16px; opacity: 0.9;">➔</span>
+          </button>
 
-        <!-- 아이폰 / 사파리 안내 카드 -->
-        <div id="iosGuideCard" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 14px 16px; margin: 12px 0; text-align: left;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
-              <span>🍎</span> <span>아이폰(Safari) 바로가기 추가</span>
+          <!-- 2. 크롬 바로가기 -->
+          <button type="button" class="btn-shortcut-option-chrome" id="btnChromeShortcut" onclick="executeChromeShortcut()">
+            <span style="font-size: 26px;">🌐</span>
+            <div style="flex: 1; text-align: left;">
+              <div style="font-size: 16px; font-weight: 800; color: #4ade80;">크롬 바로가기</div>
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">원터치로 바탕화면에 크롬 바로가기 즉시 생성</div>
             </div>
-            <span style="font-size: 11px; background: rgba(56,189,248,0.2); color: #38bdf8; padding: 2px 8px; border-radius: 20px; font-weight: 700;">아이폰 전용</span>
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.45; margin-bottom: 8px;">
-            프로파일이나 앱 설치 없이, 사파리 기본 기능으로 홈 화면에 바로가기가 생성됩니다.
-          </div>
-          <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #f1f5f9; line-height: 1.6;">
-            <div>1️⃣ 사파리 화면 맨 아래 <strong>[공유 📤]</strong> 터치</div>
-            <div>2️⃣ 메뉴에서 <strong>[홈 화면에 추가 ➕]</strong> 터치 ➔ <strong>[추가]</strong> 누르면 끝!</div>
-          </div>
+            <span style="font-size: 16px; color: #4ade80; opacity: 0.9;">➔</span>
+          </button>
+
+          <!-- 3. 사파리 바로가기 -->
+          <button type="button" class="btn-shortcut-option-safari" id="btnSafariShortcut" onclick="executeSafariShortcut()">
+            <span style="font-size: 26px;">🍎</span>
+            <div style="flex: 1; text-align: left;">
+              <div style="font-size: 16px; font-weight: 800; color: #38bdf8;">사파리 바로가기</div>
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">아이폰/아이패드 사파리 홈 화면 추가 이미지 보기</div>
+            </div>
+            <span style="font-size: 16px; color: #38bdf8; opacity: 0.9;">➔</span>
+          </button>
         </div>
 
-        <!-- PC 바탕화면 바로가기 버튼 (id="btnAutoInstall" 유지) -->
-        <button type="button" class="btn-shortcut-option-pc" id="btnAutoInstall" onclick="executePcShortcut()" style="margin-bottom: 10px;">
-          <span style="font-size: 24px;" id="btnAutoInstallIcon">🖥️</span>
-          <div style="flex: 1; text-align: left;">
-            <div style="font-size: 14px; font-weight: 800; color: #facc15;" id="btnAutoInstallText">PC 바탕화면 바로가기 (.url) 다운로드</div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">컴퓨터 바탕화면에 놓을 수 있는 바로가기 파일 즉시 받기</div>
-          </div>
-          <span style="font-size: 14px; color: #facc15; opacity: 0.8;">📥</span>
+        <!-- 보조 안내 토글 (WTT 호환 유지) -->
+        <button type="button" class="btn-shortcut-action-guide" id="btnToggleGuide" onclick="toggleShortcutGuide()" style="display:none;">
+          <span id="guideArrowIcon">▼</span>
         </button>
-
-        <!-- 설명보기 버튼 (id="btnToggleGuide" 유지) -->
-        <button type="button" class="btn-shortcut-action-guide" id="btnToggleGuide" onclick="toggleShortcutGuide()">
-          <span style="font-size: 20px;">💡</span>
-          <div style="flex: 1; text-align: left;">
-            <div style="font-size: 13px; font-weight: 800; color: #c084fc;">앱 설치 vs 바로가기 안내</div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">기기 용량을 차지하지 않는 순수 웹 바로가기 안내</div>
-          </div>
-          <span style="font-size: 13px; color: #c084fc;" id="guideArrowIcon">▼</span>
-        </button>
-
-        <!-- 기기별 쉬운 안내 가이드 (설명보기 누르면 펼쳐짐) -->
-        <div class="shortcut-guide-box" id="shortcutGuideBox" style="display: none; margin-top: 10px;">
-          <div class="shortcut-step-item">
-            <div class="shortcut-step-badge" style="color: #4ade80;">🌐 스마트폰 용량을 차지하지 않는 순수 웹 바로가기</div>
-            <div class="shortcut-step-desc">
-              전용 앱(APK)이나 프로파일을 설치하지 않고, 자주 방문하는 사이트를 바탕화면에 북마크 아이콘으로 꺼내놓아 1초 만에 바로 접속할 수 있습니다.
-            </div>
-          </div>
-        </div>
+        <div class="shortcut-guide-box" id="shortcutGuideBox" style="display: none;"></div>
 
         <button type="button" class="btn-shortcut-secondary" onclick="closeModal('shortcutModal')">
           닫기
@@ -633,80 +618,97 @@
     </div>
   </div>
 
-  <!-- [모달 9] 아이폰(iOS) 전용 홈 화면 추가 안내 모달 -->
+  <!-- [모달 9] 사파리 바로가기 스크린샷 모달 (1번 스크린샷 표출) -->
   <div class="modal-overlay" id="iosInstallGuideModal">
-    <div class="bottom-sheet ios-guide-sheet">
+    <div class="bottom-sheet ios-guide-sheet" style="max-height: 92vh; overflow-y: auto;">
       <div class="sheet-header">
-        <div class="sheet-title">🍎 아이폰 홈 화면에 바로가기 설치</div>
+        <div class="sheet-title">🍎 사파리(Safari) 바로가기 추가 방법</div>
         <button class="sheet-close" onclick="closeModal('iosInstallGuideModal')">✕</button>
       </div>
-      <div class="modal-body" style="padding: 18px 20px 24px; text-align: center;">
-        <div class="ios-guide-badge">애플(iOS) 공식 바로가기</div>
-        <div class="ios-guide-heading">아래 2가지 방법 중 하나를 선택해 주세요</div>
-        <div class="ios-guide-sub">
-          애플(iOS) 보안 정책상 웹사이트의 무단 아이콘 투하는 금지되어 있으므로,<br>
-          [공식 프로파일 다운로드] 또는 [사파리 간편 추가]로 홈 화면에 생성됩니다.
-        </div>
-
-        <!-- 카카오톡 인앱 브라우저 특별 알림 (iOS 감지 시) -->
-        <div id="iosKakaoAlert" style="display: none; background: linear-gradient(135deg, #fee500, #facc15); color: #000; padding: 14px 16px; border-radius: 14px; margin-bottom: 16px; text-align: left; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
-          <div style="font-size: 14px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-            <span>💬</span> <span>카카오톡 인앱 브라우저 감지됨</span>
-          </div>
-          <div style="font-size: 12px; color: #1e293b; line-height: 1.5; margin-bottom: 10px;">
-            애플(iOS) 보안 정책상 <strong>카카오톡 내부에서는 홈 화면 앱 설치가 차단</strong>됩니다.<br>
-            아래 버튼을 터치하여 <strong>사파리(Safari)</strong>로 여시면 3초 만에 바로 추가하실 수 있습니다!
-          </div>
-          <button type="button" onclick="escapeKakaoToExternalBrowser()" style="width: 100%; background: #000000; color: #ffffff; border: none; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
-            🚀 사파리(Safari)로 열기
+      <div class="modal-body" style="padding: 14px 16px 22px; text-align: center;">
+        <!-- 카카오톡 인앱 브라우저일 때 사파리 전환 버튼 -->
+        <div id="iosKakaoAlert" style="display: none; background: linear-gradient(135deg, #fee500, #facc15); color: #000; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px; text-align: left;">
+          <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">💬 카톡에서는 사파리로 먼저 열어주세요!</div>
+          <button type="button" onclick="escapeKakaoToExternalBrowser('safari')" style="width: 100%; background: #000; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
+            🚀 사파리(Safari)로 바로 열기
           </button>
         </div>
 
-        <!-- 방법 1. 원클릭 공식 프로파일 다운로드 -->
-        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
-          <div style="font-size: 13px; font-weight: 800; color: #60a5fa; margin-bottom: 4px;">⚡ 방법 1: 1초 공식 프로파일 다운로드</div>
-          <div style="font-size: 11px; color: #cbd5e1; line-height: 1.45; margin-bottom: 10px;">
-            애플 공식 홈 화면 WebClip 설치 파일을 스마트폰에 즉시 다운로드합니다.
+        <div style="font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 10px;">
+          1번 [공유 📤] 터치 ➔ 2번 [+ 홈 화면에 추가] 터치!
+        </div>
+
+        <!-- 사용자 첨부 1번 스크린샷 원본 그대로 선명하게 표출 -->
+        <div style="border-radius: 14px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.55); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5); margin-bottom: 14px; background: #000;">
+          <img src="/safari-guide.jpg" alt="사파리 바로가기 추가 방법 스크린샷" style="width: 100%; height: auto; display: block;">
+        </div>
+
+        <button type="button" class="btn-shortcut-primary" onclick="closeModal('iosInstallGuideModal')" style="margin-top: 4px;">
+          확인 (닫기)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [모달 11] iOS 전용 앱 설치 (프로파일 다운로드 후 설정 앱 1-Touch 연결 모달) -->
+  <iframe id="iosProfileDownloadFrame" style="display:none; width:0; height:0; border:0;"></iframe>
+  <div class="modal-overlay" id="iosProfileCompleteModal">
+    <div class="bottom-sheet ios-guide-sheet" style="max-height: 90vh; overflow-y: auto;">
+      <div class="sheet-header">
+        <div class="sheet-title">📲 iOS 전용 앱 설치 완료하기</div>
+        <button class="sheet-close" onclick="closeModal('iosProfileCompleteModal')">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 18px 24px; text-align: center;">
+        <div style="background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(59, 130, 246, 0.5); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
+          <div style="font-size: 15px; font-weight: 800; color: #60a5fa; margin-bottom: 6px;">
+            ✅ "프로필이 다운로드됨" 창이 떴다면 성공입니다!
           </div>
-          <button type="button" class="btn-shortcut-primary" onclick="downloadIosProfile()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); margin-bottom: 4px;">
-            <span>📥 애플 공식 프로파일 다운로드</span>
+          <div style="font-size: 12px; color: #e2e8f0; line-height: 1.55;">
+            애플(iPhone/iPad) 보안 정책상 다운로드된 전용 앱은 <strong>[설정] 앱에서 [설치]</strong>를 눌러야 바탕화면에 아이콘이 생성됩니다.
+          </div>
+        </div>
+
+        <!-- 원터치 아이폰/아이패드 설정 앱 바로 열기 버튼 -->
+        <button type="button" class="btn-shortcut-primary" onclick="openIosSettingsApp()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5); padding: 15px; font-size: 15px; font-weight: 800; margin-bottom: 14px; width: 100%;">
+          ⚙️ 1터치로 아이폰/아이패드 [설정] 앱 열기
+        </button>
+
+        <div class="ios-steps-container" style="margin-bottom: 14px; text-align: left;">
+          <div class="ios-step-card">
+            <div class="ios-step-num">1</div>
+            <div class="ios-step-content">
+              화면에 뜬 <strong>"프로필이 다운로드됨"</strong> 알림창에서 <strong>[닫기]</strong>를 누른 뒤, 위 <strong>[⚙️ 설정 앱 열기]</strong> 버튼을 누릅니다.
+            </div>
+          </div>
+          <div class="ios-step-card">
+            <div class="ios-step-num">2</div>
+            <div class="ios-step-content">
+              설정 앱 상단(Apple ID 바로 아래)에 새로 생긴 <strong>[프로필이 다운로드됨]</strong>을 터치합니다.
+            </div>
+          </div>
+          <div class="ios-step-card">
+            <div class="ios-step-num">3</div>
+            <div class="ios-step-content">
+              우측 상단 <strong>[설치]</strong>를 누르면 바탕화면에 <strong>오뺀 전용 앱</strong>이 즉시 생성됩니다!
+            </div>
+          </div>
+        </div>
+
+        <!-- 설정 앱 이동 없이 사파리에서 바로 추가하고 싶은 경우 -->
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 8px;">
+            💡 설정 앱에 들어가기 번거로우신가요? <strong>사파리 바로가기</strong>로 2초 만에 추가할 수도 있습니다!
+          </div>
+          <button type="button" class="btn-shortcut-option-safari" onclick="switchToSafariGuideFromProfile()" style="width: 100%; padding: 10px; justify-content: center;">
+            <span style="font-size: 16px;">🍎</span>
+            <span style="font-size: 13px; font-weight: 800; color: #38bdf8;">사파리 바로가기 방법(1번 스크린샷) 보기</span>
           </button>
-          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: center;">
-            다운로드 후 아이폰 [설정 ➔ 상단 프로파일 다운로드됨 ➔ 설치] 터치 시 즉시 생성!
-          </div>
         </div>
 
-        <!-- 방법 2. 사파리 2초 간편 추가 안내 -->
-        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-light); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
-          <div style="font-size: 13px; font-weight: 800; color: #facc15; margin-bottom: 8px;">🍎 방법 2: 사파리 간편 추가 (가장 쉬움)</div>
-          <div class="ios-steps-container" style="margin-bottom: 8px;">
-            <div class="ios-step-card">
-              <div class="ios-step-num">1</div>
-              <div class="ios-step-content">
-                사파리 화면 맨 아래 <strong>[공유 <span style="font-size:16px;">⎋</span> / 📤]</strong> 아이콘 터치
-              </div>
-            </div>
-            <div class="ios-step-card">
-              <div class="ios-step-num">2</div>
-              <div class="ios-step-content">
-                올라오는 메뉴 목록에서 <strong>[홈 화면에 추가 <span style="font-size:15px;">➕</span>]</strong> 선택
-              </div>
-            </div>
-            <div class="ios-step-card">
-              <div class="ios-step-num">3</div>
-              <div class="ios-step-content">
-                우측 상단의 <strong>[추가]</strong> 버튼을 누르면 바탕화면에 앱 아이콘 생성 완료!
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ios-pointer-box">
-          <div class="ios-pointer-arrow">👇</div>
-          <div class="ios-pointer-text">사파리 화면 맨 아래 <strong>[공유 📤]</strong> 버튼을 누르시면 됩니다</div>
-        </div>
-
-        <button type="button" class="btn-shortcut-secondary" onclick="closeModal('iosInstallGuideModal')">
+        <button type="button" class="btn-shortcut-secondary" onclick="downloadIosProfile()" style="margin-bottom: 8px; font-size: 12px;">
+          📥 프로필 다시 다운로드하기
+        </button>
+        <button type="button" class="btn-shortcut-secondary" onclick="closeModal('iosProfileCompleteModal')">
           닫기
         </button>
       </div>

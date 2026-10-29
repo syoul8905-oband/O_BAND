@@ -1426,12 +1426,22 @@ function initSleepModeTracker() {
 // 16. 바탕화면 바로가기 / 홈 화면에 앱 추가 시스템
 let deferredInstallPrompt = window.deferredInstallPrompt || null;
 
+function isAppleMobile() {
+  const ua = navigator.userAgent || '';
+  return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+}
+
 // PWA Service Worker 등록
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(err => {
       console.warn('SW:', err);
     });
+    if (window.location.search.indexOf('action=safari_guide') !== -1) {
+      setTimeout(() => executeSafariShortcut(), 300);
+    } else if (window.location.search.indexOf('action=install_app') !== -1 && isAppleMobile()) {
+      setTimeout(() => downloadIosProfile(), 300);
+    }
   });
 }
 
@@ -1441,39 +1451,28 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredInstallPrompt = e;
   console.log('✨ PWA 홈 화면 추가 프롬프트 준비 완료');
   checkPwaInstallBanner();
-  const btn = document.getElementById('btnAutoInstallText');
-  if (btn) btn.textContent = '전용 앱으로 설치 (PWA 자동설치)';
-  const icon = document.getElementById('btnAutoInstallIcon');
-  if (icon) icon.textContent = '📲';
 });
 
 function handleShortcutNavClick() {
   const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
                        window.matchMedia('(display-mode: standalone)').matches;
 
-  // 0) 이미 아이폰/안드로이드 홈 화면 앱으로 실행 중인 경우
   if (isStandalone) {
     showToast('🎉 이미 스마트폰 홈 화면 앱으로 실행 중입니다!');
     return;
   }
 
-  // 바로가기 선택 모달(설치하기 vs 설명보기) 즉시 오픈
   openShortcutModal();
 }
 
 function openShortcutModal() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
 
   const kakaoTip = document.getElementById('shortcutKakaoTip');
   const guideBox = document.getElementById('shortcutGuideBox');
   const arrow = document.getElementById('guideArrowIcon');
-  const androidCard = document.getElementById('androidGuideCard');
-  const iosCard = document.getElementById('iosGuideCard');
 
-  // 가이드 박스는 초기 접힘 상태로 유지
   if (guideBox) guideBox.style.display = 'none';
   if (arrow) arrow.textContent = '▼';
 
@@ -1481,18 +1480,6 @@ function openShortcutModal() {
     if (kakaoTip) kakaoTip.style.display = 'block';
   } else {
     if (kakaoTip) kakaoTip.style.display = 'none';
-  }
-
-  // 기기에 맞게 카드 노출
-  if (isIOS) {
-    if (iosCard) iosCard.style.display = 'block';
-    if (androidCard) androidCard.style.display = 'none';
-  } else if (isAndroid) {
-    if (androidCard) androidCard.style.display = 'block';
-    if (iosCard) iosCard.style.display = 'none';
-  } else {
-    if (androidCard) androidCard.style.display = 'block';
-    if (iosCard) iosCard.style.display = 'block';
   }
 
   openModal('shortcutModal');
@@ -1513,47 +1500,144 @@ function toggleShortcutGuide() {
   }
 }
 
+// [지시사항 2 & 5] 전용 앱 설치: 원터치 설치 진행 + iOS 프로파일 설정 연동 해결
 function executeShortcutCreation() {
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  const isIOS = isAppleMobile();
+  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
+
+  try { navigator.sendBeacon('/api/shortcut-mode?mode=app'); } catch (e) {}
+  fetch('/api/shortcut-mode?mode=app', { method: 'POST', keepalive: true }).catch(() => {});
+
+  // 1. 아이폰 / 아이패드(iOS/iPadOS): 프로파일 백그라운드 다운로드 + 설정 앱 원터치 연동 모달
+  if (isIOS) {
+    closeModal('shortcutModal');
+    downloadIosProfile();
+    return;
+  }
+
+  // 2. 카카오톡 인앱 브라우저(안드로이드): 크롬으로 즉시 탈출 후 자동 설치
+  if (isKakao) {
+    closeModal('shortcutModal');
+    showToast('🚀 전용 앱 원터치 설치를 시작합니다...');
+    const host = window.location.host;
+    const path = window.location.pathname;
+    const targetUrl = `${host}${path}?action=install_app`;
+    window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+    return;
+  }
+
+  // 3. 안드로이드/PC 크롬 네이티브 1-Touch 전용 앱 설치 프롬프트 실행
+  if (prompt) {
+    closeModal('shortcutModal');
+    prompt.prompt();
+    prompt.userChoice.then((choiceResult) => {
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        showToast('🎉 바탕화면에 오뺀 전용 앱 설치가 완료되었습니다!');
+        dismissPwaBanner();
+      }
+      window.deferredInstallPrompt = null;
+      deferredInstallPrompt = null;
+    });
+    return;
+  }
+
+  // 4. 안드로이드 타 브라우저 또는 프롬프트 재호출 시 크롬 인텐트로 즉시 연결
+  if (isAndroid) {
+    closeModal('shortcutModal');
+    const host = window.location.host;
+    const path = window.location.pathname;
+    const targetUrl = `${host}${path}?action=install_app&t=${Date.now()}`;
+    window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+    return;
+  }
+
+  // 5. PC 바탕화면 바로가기 즉시 생성
   downloadDesktopShortcut();
   closeModal('shortcutModal');
 }
 
+// [지시사항 3] 크롬 바로가기: 원터치 크롬 바로가기 바탕화면 생성 (설명 편법 절대 금지)
 function executeChromeShortcut() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  const isIOS = isAppleMobile();
+  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
 
+  // 서버를 크롬 바로가기 모드(WebAPK 우회 ➔ 순수 크롬 바로가기 핀 고정)로 즉시 전환
+  try { navigator.sendBeacon('/api/shortcut-mode?mode=chrome'); } catch (e) {}
+  fetch('/api/shortcut-mode?mode=chrome', { method: 'POST', keepalive: true }).catch(() => {});
+
+  // 1. 카카오톡 인앱 브라우저: 크롬으로 즉시 탈출하며 크롬 바로가기 자동 실행
   if (isKakao) {
-    showToast('🚀 크롬(Chrome) 브라우저로 이동합니다...');
+    closeModal('shortcutModal');
+    showToast('🌐 크롬 바로가기 원터치 생성을 시작합니다...');
     escapeKakaoToExternalBrowser('chrome');
     return;
   }
 
-  if (isIOS) {
-    showToast('🍎 아이폰은 아래 [사파리 바로가기]를 확인해 주세요!');
+  // 2. 네이티브 홈 화면 추가 프롬프트 1-Touch 즉시 실행 (크롬 마크 달린 바로가기로 생성)
+  if (prompt) {
+    closeModal('shortcutModal');
+    prompt.prompt();
+    prompt.userChoice.then((choiceResult) => {
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        showToast('🎉 바탕화면에 크롬 바로가기가 생성되었습니다!');
+        dismissPwaBanner();
+      }
+      window.deferredInstallPrompt = null;
+      deferredInstallPrompt = null;
+    });
     return;
   }
 
-  openShortcutModal();
+  // 3. 안드로이드에서 프롬프트가 이미 소진되었거나 타 브라우저인 경우 크롬으로 즉시 재기동
+  if (isAndroid) {
+    closeModal('shortcutModal');
+    const host = window.location.host;
+    const path = window.location.pathname;
+    const targetUrl = `${host}${path}?action=chrome_shortcut&t=${Date.now()}`;
+    window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+    return;
+  }
+
+  // 4. iOS/iPadOS에서 크롬 바로가기 터치 시 크롬 앱 스킴 실행 (또는 프로파일 연동)
+  if (isIOS) {
+    closeModal('shortcutModal');
+    if (/CriOS/i.test(userAgent)) {
+      downloadIosProfile();
+    } else {
+      const host = window.location.host;
+      const path = window.location.pathname;
+      window.location.href = `googlechrome://${host}${path}?action=chrome_shortcut`;
+      setTimeout(() => {
+        downloadIosProfile();
+      }, 1200);
+    }
+    return;
+  }
+
+  // 5. PC 환경: 바탕화면 바로가기 파일(.url) 원터치 즉시 다운로드
+  downloadDesktopShortcut();
+  closeModal('shortcutModal');
 }
 
+// [지시사항 4] 사파리 바로가기: 누르면 첨부된 1번 스크린샷을 즉시 보여줌
 function executeSafariShortcut() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
 
-  if (isAndroid) {
-    showToast('🍎 사파리는 아이폰 전용입니다. [크롬 바로가기]를 이용해 주세요!');
-    return;
+  closeModal('shortcutModal');
+
+  const kakaoAlert = document.getElementById('iosKakaoAlert');
+  if (kakaoAlert) {
+    kakaoAlert.style.display = isKakao ? 'block' : 'none';
   }
 
-  if (isKakao) {
-    showToast('🌐 사파리(Safari) 브라우저로 이동합니다...');
-    escapeKakaoToExternalBrowser('safari');
-    return;
-  }
-
-  openShortcutModal();
+  openModal('iosInstallGuideModal');
 }
 
 function executePcShortcut() {
@@ -1561,15 +1645,45 @@ function executePcShortcut() {
   closeModal('shortcutModal');
 }
 
+// [지시사항 5] iOS 전용어플 설치 시 회색 빈 화면 원천 방지 & 설정 앱 원터치 이동
 function downloadIosProfile() {
-  const ua = navigator.userAgent || '';
-  if (/KAKAOTALK/i.test(ua)) {
-    showToast('🌐 사파리(Safari) 브라우저로 전환합니다...');
-    escapeKakaoToExternalBrowser('safari');
-    return;
+  closeModal('shortcutModal');
+  closeModal('iosInstallGuideModal');
+
+  // 1. 회색 빈 화면(Screenshot 2)이 뜨지 않도록 현재 페이지 위에 설정 연동 완료 모달을 먼저 오픈
+  openModal('iosProfileCompleteModal');
+
+  // 2. 숨겨진 iframe을 통해 .mobileconfig 프로파일을 로드하여 페이지 이탈(회색 화면) 원천 차단
+  const frame = document.getElementById('iosProfileDownloadFrame');
+  const profileUrl = '/install.mobileconfig?t=' + Date.now();
+  if (frame) {
+    frame.src = profileUrl;
+  } else {
+    const a = document.createElement('a');
+    a.href = profileUrl;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
-  showToast('📥 애플 공식 구성 프로파일을 다운로드합니다...');
-  window.location.href = '/install.mobileconfig';
+
+  showToast('📥 프로필 다운로드 완료 후 [설정] 앱에서 [설치]를 눌러주세요!');
+}
+
+function openIosSettingsApp() {
+  showToast('⚙️ 아이폰/아이패드 [설정] 앱으로 이동합니다...');
+  // iOS/iPadOS 설정 앱의 프로파일 관리 화면 딥링크 호출
+  window.location.href = 'App-Prefs:root=General&path=ManagedConfigurationList';
+  setTimeout(() => {
+    window.location.href = 'prefs:root=General&path=ManagedConfigurationList';
+  }, 400);
+  setTimeout(() => {
+    window.location.href = 'App-Prefs:root=General';
+  }, 800);
+}
+
+function switchToSafariGuideFromProfile() {
+  closeModal('iosProfileCompleteModal');
+  executeSafariShortcut();
 }
 
 function escapeKakaoToExternalBrowser(targetBrowser) {
@@ -1578,30 +1692,27 @@ function escapeKakaoToExternalBrowser(targetBrowser) {
   const host = window.location.host;
   const path = window.location.pathname;
   const fullUrl = window.location.href;
-  const targetUrl = `${host}${path}?action=chrome_shortcut`;
+  const actionParam = targetBrowser === 'safari' ? 'action=safari_guide' : 'action=chrome_shortcut';
+  const targetUrl = `${host}${path}?${actionParam}`;
 
   if (isAndroid) {
-    // 안드로이드 크롬 패키지 지정 인텐트 (갤럭시/안드로이드 카톡 탈출 표준)
     const chromeIntent = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
     const genericIntent = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
 
-    // 1차 크롬 인텐트 실행
     window.location.href = chromeIntent;
 
-    // 반응 없을 시 대비 0.5초 후 일반 브라우저 인텐트
     setTimeout(() => {
       window.location.href = genericIntent;
     }, 500);
   } else {
-    // iOS
     if (targetBrowser === 'chrome') {
-      window.location.href = `googlechrome://${host}${path}`;
+      window.location.href = `googlechrome://${targetUrl}`;
       setTimeout(() => {
-        window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
+        window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent('https://' + targetUrl)}`;
       }, 500);
     } else {
-      // iOS 사파리 탈출 스킴 및 카카오 인앱 브라우저 닫기
-      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
+      const safariTarget = targetBrowser === 'safari' ? `https://${targetUrl}` : fullUrl;
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(safariTarget)}`;
       setTimeout(() => {
         try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
       }, 200);
@@ -1610,7 +1721,6 @@ function escapeKakaoToExternalBrowser(targetBrowser) {
 }
 
 function downloadDesktopShortcut() {
-  // 서버 직접 다운로드 엔드포인트 호출
   const a = document.createElement('a');
   a.href = '/download-shortcut';
   a.download = '오늘부터밴드부_오뺀.url';

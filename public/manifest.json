@@ -4,7 +4,7 @@
   "description": "동호회 합주실 스마트 예약 & 스케줄 관리 시스템",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#0f111a",
   "theme_color": "#7928ca",
   "orientation": "portrait",
@@ -20,12 +20,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }

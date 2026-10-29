@@ -15,6 +15,7 @@ import sys
 import urllib.parse
 import base64
 import plistlib
+import time
 from datetime import datetime, timedelta, date
 
 if sys.stdout.encoding != 'utf-8':
@@ -33,6 +34,9 @@ DB_PATH = os.path.join(DATA_DIR, "band_club.db")
 # 디렉터리 보장
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PUBLIC_DIR, exist_ok=True)
+
+# 안드로이드 1-Touch 설치 모드 상태 ('app': 전용앱 WebAPK, 'chrome': 크롬 바로가기 Shortcut)
+SHORTCUT_MODE_STATE = {'mode': 'app', 'ts': 0.0}
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
@@ -348,6 +352,36 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'success': True, 'window': get_booking_window()})
             return
 
+        # 5-1. 바로가기 생성 모드 전환 (전용앱 WebAPK vs 크롬 바로가기 Shortcut): /api/shortcut-mode
+        if path == '/api/shortcut-mode':
+            mode = query.get('mode', ['app'])[0]
+            SHORTCUT_MODE_STATE['mode'] = mode
+            SHORTCUT_MODE_STATE['ts'] = time.time()
+            self.send_json({'success': True, 'mode': mode})
+            return
+
+        # 5-2. /icon-512.png 동적 제어 (크롬 바로가기 선택 시 WebApkIconsHasher 404 폴백으로 순수 크롬 바로가기 생성)
+        if path in ['/icon-512.png', '/icon-maskable-512.png']:
+            if SHORTCUT_MODE_STATE['mode'] == 'chrome' and (time.time() - SHORTCUT_MODE_STATE['ts'] < 25.0):
+                SHORTCUT_MODE_STATE['mode'] = 'app'
+                self.send_response(404)
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.end_headers()
+                return
+            icon512_path = os.path.join(PUBLIC_DIR, path.lstrip('/'))
+            if os.path.exists(icon512_path):
+                with open(icon512_path, 'rb') as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
         # 6. 아이폰(iOS) WebClip 구성 프로파일 다운로드: /install.mobileconfig
         if path == '/install.mobileconfig':
             icon_path = os.path.join(PUBLIC_DIR, 'icon-192.png')
@@ -386,7 +420,8 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             content_bytes = plistlib.dumps(profile_data, fmt=plistlib.FMT_XML)
             self.send_response(200)
             self.send_header('Content-Type', 'application/x-apple-aspen-config; charset=utf-8')
-            self.send_header('Content-Disposition', 'attachment; filename="oband.mobileconfig"')
+            self.send_header('Content-Disposition', 'inline; filename="oband.mobileconfig"')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.send_header('Content-Length', str(len(content_bytes)))
             self.end_headers()
             self.wfile.write(content_bytes)
@@ -410,6 +445,14 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+
+        if path == '/api/shortcut-mode':
+            mode = query.get('mode', ['app'])[0]
+            SHORTCUT_MODE_STATE['mode'] = mode
+            SHORTCUT_MODE_STATE['ts'] = time.time()
+            self.send_json({'success': True, 'mode': mode})
+            return
 
         try:
             body = self.read_json_body()

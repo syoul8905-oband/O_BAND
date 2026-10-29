@@ -187,6 +187,22 @@ def run_wtt():
     out2 = sock2.wfile.getvalue().decode('utf-8', errors='ignore')
     assert '[InternetShortcut]' in out2, "/download-shortcut 내용 오류"
 
+    # 5대 핵심 지시사항 (1. 3개 선택창 / 2. 전용앱 원터치 / 3. 크롬 바로가기 1-Touch / 4. 사파리 1번 스크린샷 / 5. iOS 프로파일 해결책) 검증
+    assert 'executeShortcutCreation()' in index_html_text and 'executeChromeShortcut()' in index_html_text and 'executeSafariShortcut()' in index_html_text, "3대 바로가기 선택 버튼 누락"
+    assert '/safari-guide.jpg' in index_html_text and os.path.exists(os.path.join(server.PUBLIC_DIR, 'safari-guide.jpg')), "사파리 1번 스크린샷 누락"
+    assert 'iosProfileCompleteModal' in index_html_text and 'iosProfileDownloadFrame' in index_html_text and 'openIosSettingsApp' in app_js_text, "iOS 프로파일 해결 모달/프레임 누락"
+
+    # 크롬 바로가기 모드 시 /icon-512.png 404 폴백(WebAPK 우회 -> 순수 크롬 바로가기 생성) 및 자동 복구 검증
+    sock_mode = MockSocket(b'POST /api/shortcut-mode?mode=chrome HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n')
+    server.BandClubRequestHandler(sock_mode, ('127.0.0.1', 1234), None)
+    sock_icon_chrome = MockSocket(b'GET /icon-512.png HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    server.BandClubRequestHandler(sock_icon_chrome, ('127.0.0.1', 1234), None)
+    assert b'404' in sock_icon_chrome.wfile.getvalue().split(b'\r\n', 1)[0], "크롬 바로가기 모드 시 404 폴백 미작동"
+
+    sock_icon_app = MockSocket(b'GET /icon-512.png HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    server.BandClubRequestHandler(sock_icon_app, ('127.0.0.1', 1234), None)
+    assert b'200' in sock_icon_app.wfile.getvalue().split(b'\r\n', 1)[0], "전용 앱 모드 시 200 복구 미작동"
+
     print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
