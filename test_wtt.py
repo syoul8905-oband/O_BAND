@@ -130,9 +130,11 @@ def run_wtt():
     assert 'tab-members' not in index_html_text, "부원 명부 탭이 index.html에 잔존함"
     assert 'editMemberModal' not in index_html_text, "부원 수정 모달이 index.html에 잔존함"
     assert 'bookPurpose' not in index_html_text, "합주 목적 입력란이 index.html에 잔존함"
+    assert 'bookPart' not in index_html_text, "담당 파트 입력란이 index.html에 잔존함"
     assert 'openTeamChipsModal' in index_html_text, "팀명 빠른메뉴 수정 버튼이 index.html에 누락됨"
-    assert 'openTeamChipsModal' in app_js_text and 'renderTeamQuickChips' in app_js_text, "팀명 칩 동적 렌더링 함수 누락"
-    print("✅ 9. [3개 탭 정돈 & 팀명 메뉴 수정 & 달력 슬라이드] 합주목적 제거, 팀명 칩 실시간 수정, 모바일 스와이프 100% 확인")
+    assert 'onBandTeamChange' in index_html_text, "onBandTeamChange 이벤트 핸들러 누락"
+    assert 'renderTeamOptions' in app_js_text and 'onBandTeamChange' in app_js_text, "팀명 드롭다운 렌더링 함수 누락"
+    print("✅ 9. [담당 파트 ➔ 팀명 드롭다운 개편 & 폼 극대화] 담당파트 제거, 팀명 드롭다운, 모바일 스와이프 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))

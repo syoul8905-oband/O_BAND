@@ -189,30 +189,16 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">예약자 성함</label>
-            <input type="text" class="form-input" id="bookMemberName" placeholder="예: 김보컬" required>
+            <input type="text" class="form-input" id="bookMemberName" placeholder="예: 홍길동" required>
           </div>
           <div class="form-group">
-            <label class="form-label">담당 파트</label>
-            <select class="form-select" id="bookPart">
-              <option value="보컬">보컬 🎤</option>
-              <option value="일렉기타">일렉기타 🎸</option>
-              <option value="어쿠스틱기타">통기타 🪕</option>
-              <option value="베이스">베이스 🎸</option>
-              <option value="드럼">드럼 🥁</option>
-              <option value="건반">건반 🎹</option>
-              <option value="전체합주">전체 파트 🎶</option>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label class="form-label" style="margin-bottom:0;">팀명</label>
+              <button type="button" class="btn-chip-edit" onclick="openTeamChipsModal()" title="팀명 목록 관리자 수정">✏️ 수정</button>
+            </div>
+            <select class="form-select" id="bookBandTeam" onchange="onBandTeamChange()" required>
+              <!-- JS 동적 렌더링 -->
             </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <label class="form-label" style="margin-bottom:0;">팀명 / 소속 (직접 입력)</label>
-            <button type="button" class="btn-chip-edit" onclick="openTeamChipsModal()">✏️ 수정</button>
-          </div>
-          <input type="text" class="form-input" id="bookBandTeam" placeholder="예: 정기 1팀, 행복스터디, 개인연습" required>
-          <div class="quick-tag-row" id="teamQuickChips">
-            <!-- JS 동적 렌더링 -->
           </div>
         </div>
 

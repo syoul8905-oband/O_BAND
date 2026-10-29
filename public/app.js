@@ -606,20 +606,53 @@ function setQuickDuration(minutes) {
 }
 
 function setTeamName(name) {
-  document.getElementById('bookBandTeam').value = name;
+  const selectEl = document.getElementById('bookBandTeam');
+  if (!selectEl) return;
+  let opt = Array.from(selectEl.options).find(o => o.value === name);
+  if (!opt) {
+    opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    selectEl.insertBefore(opt, selectEl.lastElementChild);
+  }
+  opt.selected = true;
 }
 
-// 팀명 빠른 선택 칩 동적 렌더링
-function renderTeamQuickChips() {
-  const container = document.getElementById('teamQuickChips');
-  if (!container) return;
+// 팀명 드롭다운 옵션 동적 렌더링
+function renderTeamOptions() {
+  const selectEl = document.getElementById('bookBandTeam');
+  if (!selectEl) return;
 
-  const raw = bookingWindow.quick_teams || '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습';
+  const raw = bookingWindow.quick_teams || '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습';
   const teams = raw.split(',').map(t => t.trim()).filter(Boolean);
 
-  container.innerHTML = teams.map(t => 
-    `<span class="quick-tag-chip" onclick="setTeamName('${escapeHtml(t)}')">${escapeHtml(t)}</span>`
-  ).join('');
+  selectEl.innerHTML = teams.map(t => 
+    `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`
+  ).join('') + '<option value="__custom__">✏️ 직접 입력...</option>';
+}
+
+function renderTeamQuickChips() {
+  renderTeamOptions();
+}
+
+// 팀명 드롭다운 직접 입력 핸들러
+function onBandTeamChange() {
+  const selectEl = document.getElementById('bookBandTeam');
+  if (!selectEl) return;
+
+  if (selectEl.value === '__custom__') {
+    const customName = prompt('팀명을 직접 입력해 주세요:');
+    if (customName && customName.trim()) {
+      const trimmed = customName.trim();
+      const opt = document.createElement('option');
+      opt.value = trimmed;
+      opt.textContent = trimmed;
+      opt.selected = true;
+      selectEl.insertBefore(opt, selectEl.lastElementChild);
+    } else {
+      selectEl.selectedIndex = 0;
+    }
+  }
 }
 
 // 팀명 빠른 선택 메뉴 관리자 수정 모달
@@ -627,7 +660,7 @@ function openTeamChipsModal() {
   const inputTeams = document.getElementById('inputQuickTeams');
   const inputPin = document.getElementById('inputTeamChipsPin');
   if (inputTeams) {
-    inputTeams.value = bookingWindow.quick_teams || '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습';
+    inputTeams.value = bookingWindow.quick_teams || '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습';
   }
   if (inputPin) {
     inputPin.value = isAdmin ? (adminPin || '9999') : '';
@@ -661,9 +694,9 @@ async function submitTeamChips(e) {
     }
 
     bookingWindow.quick_teams = teamsVal;
-    renderTeamQuickChips();
+    renderTeamOptions();
     closeModal('teamChipsModal');
-    alert('🎉 팀명 빠른 선택 메뉴가 성공적으로 변경되었습니다!');
+    alert('🎉 팀명 메뉴가 성공적으로 변경되었습니다!');
   } catch (err) {
     alert(`오류: ${err.message}`);
   }
@@ -673,23 +706,25 @@ async function submitTeamChips(e) {
 function openBookingModalForSelectedDate() {
   document.getElementById('bookDate').value = selectedDate;
   document.getElementById('bookMemberName').value = '';
-  document.getElementById('bookBandTeam').value = '';
   document.getElementById('bookPin').value = isAdmin ? (adminPin || '9999') : '';
   
-  renderTeamQuickChips();
+  renderTeamOptions();
   refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
 }
 
 async function submitBooking(e) {
   e.preventDefault();
+  const teamEl = document.getElementById('bookBandTeam');
+  const selectedTeam = teamEl ? teamEl.value.trim() : '전체합주';
+
   const body = {
     res_date: document.getElementById('bookDate').value,
     start_time: document.getElementById('bookStartTime').value,
     end_time: document.getElementById('bookEndTime').value,
     member_name: document.getElementById('bookMemberName').value.trim(),
-    band_team: document.getElementById('bookBandTeam').value.trim() || '전체합주',
-    part: document.getElementById('bookPart').value,
+    band_team: selectedTeam === '__custom__' ? '전체합주' : selectedTeam,
+    part: '합주',
     purpose: '',
     pin: document.getElementById('bookPin').value.trim()
   };
