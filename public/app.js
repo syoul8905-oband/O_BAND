@@ -1465,10 +1465,8 @@ function openShortcutModal() {
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const isMobile = isAndroid || isIOS;
 
   const btnText = document.getElementById('btnAutoInstallText');
-  const btnIcon = document.getElementById('btnAutoInstallIcon');
   const kakaoTip = document.getElementById('shortcutKakaoTip');
   const guideBox = document.getElementById('shortcutGuideBox');
   const arrow = document.getElementById('guideArrowIcon');
@@ -1478,23 +1476,18 @@ function openShortcutModal() {
   if (arrow) arrow.textContent = '▼';
 
   if (isKakao) {
-    if (btnText) btnText.textContent = '크롬 / 사파리 외부 브라우저로 열기';
-    if (btnIcon) btnIcon.textContent = '🌐';
     if (kakaoTip) kakaoTip.style.display = 'block';
   } else {
     if (kakaoTip) kakaoTip.style.display = 'none';
+  }
+
+  if (btnText) {
     if (isIOS) {
-      if (btnText) btnText.textContent = '애플 공식 바로가기 다운로드 (설치)';
-      if (btnIcon) btnIcon.textContent = '🍎';
-    } else if (deferredInstallPrompt) {
-      if (btnText) btnText.textContent = '스마트폰 홈 화면에 바로 설치하기';
-      if (btnIcon) btnIcon.textContent = '🚀';
-    } else if (!isMobile) {
-      if (btnText) btnText.textContent = '바탕화면 바로가기 (.url) 다운로드';
-      if (btnIcon) btnIcon.textContent = '🖥️';
+      btnText.textContent = '전용 앱으로 설치 (WebClip 프로파일)';
+    } else if (isAndroid) {
+      btnText.textContent = '전용 앱으로 설치 (PWA 자동설치)';
     } else {
-      if (btnText) btnText.textContent = '스마트폰 홈 화면에 바로 설치하기';
-      if (btnIcon) btnIcon.textContent = '📱';
+      btnText.textContent = '전용 앱으로 설치하기';
     }
   }
 
@@ -1562,18 +1555,87 @@ function executeShortcutCreation() {
   closeModal('shortcutModal');
 }
 
+function executeChromeShortcut() {
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+
+  if (isKakao) {
+    showToast('🚀 크롬(Chrome) 브라우저로 전환합니다...');
+    escapeKakaoToExternalBrowser('chrome');
+    return;
+  }
+
+  if (isIOS) {
+    if (/CriOS/i.test(userAgent)) {
+      alert('🌐 크롬 우측 상단 [공유 📤] ➔ [홈 화면에 추가 ➕]를 선택하시면 크롬 바로가기가 생성됩니다!');
+      closeModal('shortcutModal');
+    } else {
+      const openChrome = confirm('💡 크롬 앱으로 바로가기를 만드시겠습니까?\n[확인]을 누르면 크롬으로 이동하며, [취소]를 누르면 사파리 바로가기 안내를 보여드립니다.');
+      if (openChrome) {
+        window.location.href = `googlechrome://${window.location.host}${window.location.pathname}${window.location.search}`;
+      } else {
+        executeSafariShortcut();
+      }
+    }
+    return;
+  }
+
+  if (isAndroid) {
+    alert('💡 크롬 브라우저 우측 상단 [ ⋮ ] 메뉴를 누른 후\n[홈 화면에 추가]를 선택하시면 크롬 바로가기가 생성됩니다!');
+    closeModal('shortcutModal');
+    return;
+  }
+
+  // PC
+  alert('💡 크롬 우측 상단 메뉴 [ ⋮ ] ➔ [전송, 저장 및 공유] ➔ [바로가기 만들기]를 선택하시면 크롬 바로가기가 생성됩니다!');
+  closeModal('shortcutModal');
+}
+
+function executeSafariShortcut() {
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+
+  if (isAndroid) {
+    alert('🍎 사파리(Safari)는 아이폰/아이패드 전용 브라우저입니다.\n안드로이드 폰에서는 [크롬 바로가기]를 이용해 주세요!');
+    return;
+  }
+
+  if (isKakao) {
+    showToast('🌐 사파리(Safari) 브라우저로 이동합니다...');
+    escapeKakaoToExternalBrowser('safari');
+    return;
+  }
+
+  if (isIOS) {
+    closeModal('shortcutModal');
+    openModal('iosInstallGuideModal');
+    return;
+  }
+
+  alert('🍎 사파리(Safari)는 애플 기기 전용 브라우저입니다.\nPC에서는 [PC 바탕화면 바로가기]를 이용해 주세요!');
+}
+
+function executePcShortcut() {
+  downloadDesktopShortcut();
+  closeModal('shortcutModal');
+}
+
 function downloadIosProfile() {
   const ua = navigator.userAgent || '';
   if (/KAKAOTALK/i.test(ua)) {
     showToast('🌐 사파리(Safari) 브라우저로 전환합니다...');
-    escapeKakaoToExternalBrowser();
+    escapeKakaoToExternalBrowser('safari');
     return;
   }
   showToast('📥 애플 공식 구성 프로파일을 다운로드합니다...');
   window.location.href = '/install.mobileconfig';
 }
 
-function escapeKakaoToExternalBrowser() {
+function escapeKakaoToExternalBrowser(targetBrowser) {
   const userAgent = navigator.userAgent || '';
   const isAndroid = /Android/i.test(userAgent);
   const host = window.location.host;
@@ -1593,11 +1655,19 @@ function escapeKakaoToExternalBrowser() {
       window.location.href = genericIntent;
     }, 500);
   } else {
-    // iOS 사파리 탈출 스킴 및 카카오 인앱 브라우저 닫기
-    window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
-    setTimeout(() => {
-      window.location.href = 'kakaoweb://closeBrowser';
-    }, 200);
+    // iOS
+    if (targetBrowser === 'chrome') {
+      window.location.href = `googlechrome://${host}${path}`;
+      setTimeout(() => {
+        window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
+      }, 500);
+    } else {
+      // iOS 사파리 탈출 스킴 및 카카오 인앱 브라우저 닫기
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
+      setTimeout(() => {
+        window.location.href = 'kakaoweb://closeBrowser';
+      }, 200);
+    }
   }
 }
 
