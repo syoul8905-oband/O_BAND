@@ -1467,10 +1467,11 @@ function openShortcutModal() {
   const isAndroid = /Android/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
 
-  const btnText = document.getElementById('btnAutoInstallText');
   const kakaoTip = document.getElementById('shortcutKakaoTip');
   const guideBox = document.getElementById('shortcutGuideBox');
   const arrow = document.getElementById('guideArrowIcon');
+  const androidCard = document.getElementById('androidGuideCard');
+  const iosCard = document.getElementById('iosGuideCard');
 
   // 가이드 박스는 초기 접힘 상태로 유지
   if (guideBox) guideBox.style.display = 'none';
@@ -1482,14 +1483,16 @@ function openShortcutModal() {
     if (kakaoTip) kakaoTip.style.display = 'none';
   }
 
-  if (btnText) {
-    if (isIOS) {
-      btnText.textContent = '전용 앱으로 설치 (WebClip 프로파일)';
-    } else if (isAndroid) {
-      btnText.textContent = '전용 앱으로 설치 (PWA 자동설치)';
-    } else {
-      btnText.textContent = '전용 앱으로 설치하기';
-    }
+  // 기기에 맞게 카드 노출
+  if (isIOS) {
+    if (iosCard) iosCard.style.display = 'block';
+    if (androidCard) androidCard.style.display = 'none';
+  } else if (isAndroid) {
+    if (androidCard) androidCard.style.display = 'block';
+    if (iosCard) iosCard.style.display = 'none';
+  } else {
+    if (androidCard) androidCard.style.display = 'block';
+    if (iosCard) iosCard.style.display = 'block';
   }
 
   openModal('shortcutModal');
@@ -1511,42 +1514,6 @@ function toggleShortcutGuide() {
 }
 
 function executeShortcutCreation() {
-  const userAgent = navigator.userAgent || '';
-  const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
-
-  // 1. 카카오톡 인앱 브라우저: 외부 브라우저(크롬/사파리)로 탈출 실행
-  if (isKakao) {
-    showToast(isIOS ? '🌐 사파리(Safari) 브라우저로 이동합니다...' : '🚀 크롬(Chrome) 브라우저로 이동합니다...');
-    escapeKakaoToExternalBrowser();
-    return;
-  }
-
-  // 2. 모바일 브라우저(크롬/삼성인터넷 등)에서 PWA 설치 프롬프트가 대기 중인 경우: 1-Touch 실행
-  if (prompt) {
-    closeModal('shortcutModal');
-    prompt.prompt();
-    prompt.userChoice.then((choiceResult) => {
-      if (choiceResult && choiceResult.outcome === 'accepted') {
-        showToast('🎉 스마트폰 홈 화면에 앱 바로가기가 설치되었습니다!');
-        dismissPwaBanner();
-      }
-      window.deferredInstallPrompt = null;
-      deferredInstallPrompt = null;
-    });
-    return;
-  }
-
-  // 3. 아이폰 환경인 경우 공식 프로파일 다운로드 및 안내
-  if (isIOS) {
-    downloadIosProfile();
-    closeModal('shortcutModal');
-    return;
-  }
-
-  // 4. PC 데스크톱 환경 또는 프롬프트 미지원 모바일
   downloadDesktopShortcut();
   closeModal('shortcutModal');
 }
@@ -1555,100 +1522,24 @@ function executeChromeShortcut() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
-  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
 
-  // 1. 카카오톡 인앱 브라우저: 크롬으로 즉시 전환 (action=chrome_shortcut 전달하여 크롬에서 자동 기동)
   if (isKakao) {
-    showToast('🚀 크롬(Chrome) 브라우저로 전환하여 바로가기를 자동 생성합니다...');
-    const host = window.location.host;
-    const path = window.location.pathname;
-    const targetUrl = `${host}${path}?action=chrome_shortcut`;
-    if (isAndroid) {
-      window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
-      setTimeout(() => {
-        window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
-      }, 500);
-    } else {
-      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent('https://' + targetUrl)}`;
-      setTimeout(() => {
-        try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
-      }, 200);
-    }
+    showToast('🚀 크롬(Chrome) 브라우저로 이동합니다...');
+    escapeKakaoToExternalBrowser('chrome');
     return;
   }
 
-  // 2. 크롬/안드로이드 네이티브 홈 화면 추가 프롬프트 즉시 1-Touch 실행!
-  if (prompt) {
-    closeModal('shortcutModal');
-    prompt.prompt();
-    prompt.userChoice.then((choiceResult) => {
-      if (choiceResult && choiceResult.outcome === 'accepted') {
-        showToast('🎉 스마트폰 홈 화면에 크롬 바로가기가 성공적으로 추가되었습니다!');
-        dismissPwaBanner();
-      }
-      window.deferredInstallPrompt = null;
-      deferredInstallPrompt = null;
-    });
-    return;
-  }
-
-  // 3. 아이폰(iOS)인 경우:
-  // 애플 OS는 보안 정책상 타사 브라우저(크롬 등)의 홈 화면 바로가기 추가를 차단합니다.
-  // 홈 화면에 바로가기를 추가하는 가장 확실한 1-Touch 방식인 애플 공식 프로파일(WebClip)을 즉시 다운로드합니다!
   if (isIOS) {
-    showToast('🍎 아이폰 바탕화면 바로가기 생성을 위해 애플 공식 프로파일을 다운로드합니다!');
-    closeModal('shortcutModal');
-    downloadIosProfile();
+    showToast('🍎 아이폰은 아래 [사파리 바로가기]를 확인해 주세요!');
     return;
   }
 
-  // 4. PC 데스크톱(Windows / Mac 등)인 경우:
-  // 클릭 즉시 PC 바탕화면에 추가할 크롬 바로가기(.url) 파일을 다운로드 실행!
-  if (!isAndroid && !isIOS) {
-    downloadDesktopShortcut();
-    closeModal('shortcutModal');
-    return;
-  }
-
-  // 5. 안드로이드 환경인데 prompt가 0.1초 차이로 준비 중인 경우 대비 폴링 재시도
-  showToast('⚡ 크롬 바로가기 추가 창을 실행하는 중입니다...');
-  let pollAttempts = 0;
-  const pollTimer = setInterval(() => {
-    pollAttempts++;
-    const activePrompt = window.deferredInstallPrompt || deferredInstallPrompt;
-    if (activePrompt) {
-      clearInterval(pollTimer);
-      closeModal('shortcutModal');
-      activePrompt.prompt();
-      activePrompt.userChoice.then((choiceResult) => {
-        if (choiceResult && choiceResult.outcome === 'accepted') {
-          showToast('🎉 스마트폰 홈 화면에 크롬 바로가기가 생성되었습니다!');
-          dismissPwaBanner();
-        }
-        window.deferredInstallPrompt = null;
-        deferredInstallPrompt = null;
-      });
-    } else if (pollAttempts >= 8) {
-      clearInterval(pollTimer);
-      const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
-                           window.matchMedia('(display-mode: standalone)').matches;
-      if (isStandalone) {
-        showToast('🎉 이미 스마트폰에 바로가기 앱이 설치되어 있습니다!');
-        closeModal('shortcutModal');
-      } else {
-        // 백업: PC 파일 다운로드 및 안내
-        downloadDesktopShortcut();
-        closeModal('shortcutModal');
-      }
-    }
-  }, 100);
+  openShortcutModal();
 }
 
 function executeSafariShortcut() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
 
   if (isAndroid) {
@@ -1662,14 +1553,7 @@ function executeSafariShortcut() {
     return;
   }
 
-  if (isIOS) {
-    closeModal('shortcutModal');
-    openModal('iosInstallGuideModal');
-    return;
-  }
-
-  downloadDesktopShortcut();
-  closeModal('shortcutModal');
+  openShortcutModal();
 }
 
 function executePcShortcut() {
