@@ -153,6 +153,7 @@ async function loadBookingWindow() {
     if (data.success && data.window) {
       bookingWindow = data.window;
       renderTeamQuickChips();
+      initKakaoSDK();
       const noticeEl = document.getElementById('windowNoticeText');
       if (noticeEl) {
         if (isAdmin) {
@@ -806,15 +807,19 @@ async function submitCancel(e) {
 function openSettingsModal() {
   document.getElementById('cfgOpenWeeks').value = String(bookingWindow.open_weeks || 2);
   document.getElementById('cfgResetDay').value = String(bookingWindow.reset_day || 0);
+  const kakaoInput = document.getElementById('cfgKakaoJsKey');
+  if (kakaoInput) kakaoInput.value = bookingWindow.kakao_js_key || '';
   document.getElementById('cfgAdminPin').value = isAdmin ? (adminPin || '9999') : '';
   openModal('settingsModal');
 }
 
 async function submitSettings(e) {
   e.preventDefault();
+  const kakaoInput = document.getElementById('cfgKakaoJsKey');
   const body = {
     open_weeks: Number(document.getElementById('cfgOpenWeeks').value),
     reset_day: Number(document.getElementById('cfgResetDay').value),
+    kakao_js_key: kakaoInput ? kakaoInput.value.trim() : '',
     pin: document.getElementById('cfgAdminPin').value.trim()
   };
 
@@ -1144,6 +1149,19 @@ function escapeHtml(str) {
 let lastBookingInfo = null;
 let toastTimer = null;
 
+function initKakaoSDK() {
+  if (window.Kakao && bookingWindow && bookingWindow.kakao_js_key) {
+    if (!Kakao.isInitialized()) {
+      try {
+        Kakao.init(bookingWindow.kakao_js_key.trim());
+        console.log('✅ Kakao SDK 초기화 성공');
+      } catch (e) {
+        console.warn('Kakao init error:', e);
+      }
+    }
+  }
+}
+
 function openBookingSuccessModal(info) {
   lastBookingInfo = info;
   const summaryEl = document.getElementById('bookingSuccessSummary');
@@ -1227,6 +1245,41 @@ function shareReservationKakao(info) {
   const shareUrl = window.location.origin && window.location.origin.startsWith('http')
     ? window.location.origin
     : 'https://o-band.onrender.com';
+
+  // 1. 카카오톡 공식 SDK 직접 연동 (카톡 앱 즉시 실행 및 채팅방/친구 선택 창 바로 띄우기)
+  if (window.Kakao && Kakao.isInitialized()) {
+    try {
+      Kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: `🎸 [오뺀] 합주실 예약 안내`,
+          description: `📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실`,
+          imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+          link: {
+            mobileWebUrl: shareUrl,
+            webUrl: shareUrl
+          }
+        },
+        buttons: [
+          {
+            title: '📅 합주실 일정 확인하기',
+            link: {
+              mobileWebUrl: shareUrl,
+              webUrl: shareUrl
+            }
+          }
+        ]
+      });
+      return;
+    } catch (err) {
+      console.warn('Kakao.Share sendDefault 에러:', err);
+    }
+  }
+
+  // 2. 카카오 JS 키가 미설정된 경우: 키 등록 안내 후 navigator.share / 클립보드 폴백
+  if (!bookingWindow || !bookingWindow.kakao_js_key) {
+    showToast('⚠️ 카카오톡 채팅방 직접 선택을 위해\n관리자 설정(⚙️)에서 카카오 JS 키를 등록해 주세요!');
+  }
 
   const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name}\n📍 장소: 오뺀 합주실\n\n👉 합주 일정 확인하기:\n${shareUrl}`;
 

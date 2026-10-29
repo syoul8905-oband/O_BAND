@@ -80,16 +80,19 @@ def run_wtt():
     # 7. 관리자 설정 변경 (예: 3주로 변경 및 팀명 빠른 선택 칩 동적 설정)
     cur.execute("UPDATE system_settings SET setting_value = '3' WHERE setting_key = 'open_weeks'")
     cur.execute("UPDATE system_settings SET setting_value = '전체합주, 정기 1팀, 주말팀, A팀, 개인연습' WHERE setting_key = 'quick_teams'")
+    cur.execute("UPDATE system_settings SET setting_value = 'test_kakao_key_1234' WHERE setting_key = 'kakao_js_key'")
     conn.commit()
     new_window = server.get_booking_window()
     assert new_window['open_weeks'] == 3, "관리자 주차 변경 실패"
     assert '주말팀' in new_window['quick_teams'] and 'A팀' in new_window['quick_teams'], "팀명 칩 설정 변경 실패"
+    assert new_window['kakao_js_key'] == 'test_kakao_key_1234', "카카오 JS 키 설정 변경 실패"
     expected_saturday_3w = expected_sunday + timedelta(days=20)
     assert new_window['max_allowed_date'] == expected_saturday_3w.isoformat(), "3주차 마감일 계산 오류"
-    print(f"✅ 6. [관리자 조건 변경 & 팀명 칩 동적 제어] 오픈 범위(3주) 및 팀명 빠른 메뉴({new_window['quick_teams']}) 즉시 동적 반영 확인")
+    print(f"✅ 6. [관리자 조건 변경 & 팀명 칩 동적 제어 & 카카오키] 오픈 범위(3주), 팀명({new_window['quick_teams']}), 카카오키 즉시 반영 확인")
 
     # 원복
     cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
+    cur.execute("UPDATE system_settings SET setting_value = '' WHERE setting_key = 'kakao_js_key'")
     conn.commit()
 
     # 8. 관리자 권한 합주 강제 취소 검증
@@ -158,11 +161,11 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'cfgKakaoJsKey' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'btn-share-icon' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'initKakaoSDK' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")
