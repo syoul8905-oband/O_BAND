@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <title>오늘부터 밴드부 (오뺀) - 모바일 전용</title>
   <meta name="theme-color" content="#1a1d27">
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
@@ -560,14 +560,14 @@
     </div>
   </div>
 
-  <!-- [모달 9] 사파리 바로가기 스크린샷 모달 (1번 스크린샷 표출) -->
+  <!-- [모달 9] 사파리 바로가기 스크린샷 모달 (1번 스크린샷 표출 + 터치 확대 지원) -->
   <div class="modal-overlay" id="iosInstallGuideModal">
-    <div class="bottom-sheet ios-guide-sheet" style="max-height: 92vh; overflow-y: auto;">
-      <div class="sheet-header">
+    <div class="bottom-sheet ios-guide-sheet" style="max-height: 94vh; overflow-y: auto; max-width: 540px; width: 100%;">
+      <div class="sheet-header" style="padding: 14px 14px 10px;">
         <div class="sheet-title">🍎 사파리(Safari) 바로가기 추가 방법</div>
         <button class="sheet-close" onclick="closeModal('iosInstallGuideModal')">✕</button>
       </div>
-      <div class="modal-body" style="padding: 14px 16px 22px; text-align: center;">
+      <div class="modal-body" style="padding: 10px 10px 20px; text-align: center;">
         <div id="iosKakaoAlert" style="display: none; background: linear-gradient(135deg, #fee500, #facc15); color: #000; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px; text-align: left;">
           <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">💬 카톡에서는 사파리로 먼저 열어주세요!</div>
           <button type="button" onclick="escapeKakaoToExternalBrowser('safari')" style="width: 100%; background: #000; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
@@ -575,13 +575,24 @@
           </button>
         </div>
 
-        <div style="font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 10px;">
+        <div style="font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 8px;">
           1번 [공유 📤] 터치 ➔ 2번 [+ 홈 화면에 추가] 터치!
         </div>
 
-        <!-- 사용자 첨부 1번 스크린샷 원본 그대로 선명하게 표출 -->
-        <div style="border-radius: 14px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.55); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5); margin-bottom: 14px; background: #000;">
-          <img src="/safari-guide.jpg" alt="사파리 바로가기 추가 방법 스크린샷" style="width: 100%; height: auto; display: block;">
+        <!-- 확대 안내 및 원터치 확대 버튼 -->
+        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+          <button type="button" class="btn-manual-zoom-trigger" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')">
+            🔍 1·2번 표시 부분 크게 확대보기
+          </button>
+          <button type="button" class="btn-manual-zoom-trigger secondary" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법', 1.5, 'center')">
+            🖼️ 전체 사진 확대
+          </button>
+        </div>
+
+        <!-- 사용자 첨부 1번 스크린샷 (좌측 불필요한 여백 제거 후 핵심 메뉴 1.6배 크게 기본 표출 + 터치 시 전체화면 확대 뷰어 실행) -->
+        <div class="manual-zoomable-card" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')" style="border-radius: 14px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.65); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5); margin-bottom: 14px; background: #000; position: relative; cursor: zoom-in;">
+          <img src="/safari-guide.jpg" alt="사파리 바로가기 추가 방법 스크린샷" style="width: 158%; max-width: none; margin-left: -58%; height: auto; display: block;">
+          <div class="manual-zoom-badge">🔍 사진을 터치하면 전체화면으로 확대됩니다</div>
         </div>
 
         <button type="button" class="btn-shortcut-primary" onclick="closeModal('iosInstallGuideModal')" style="margin-top: 4px;">
@@ -591,42 +602,58 @@
     </div>
   </div>
 
-  <!-- [모달 11] 크롬(Chrome) 순수 바로가기 안내 모달 (첨부 3단계 스크린샷 표출) -->
+  <!-- [모달 11] 크롬(Chrome) 순수 바로가기 안내 모달 (첨부 3단계 스크린샷 표출 + 터치 확대 지원) -->
   <iframe id="iosProfileDownloadFrame" style="display:none; width:0; height:0; border:0;"></iframe>
   <div class="modal-overlay" id="iosProfileCompleteModal">
-    <div class="bottom-sheet ios-guide-sheet" style="max-height: 92vh; overflow-y: auto;">
-      <div class="sheet-header">
+    <div class="bottom-sheet ios-guide-sheet" style="max-height: 94vh; overflow-y: auto; max-width: 540px; width: 100%;">
+      <div class="sheet-header" style="padding: 14px 14px 10px;">
         <div class="sheet-title">🌐 크롬(Chrome) 바로가기 추가 방법</div>
         <button class="sheet-close" onclick="closeModal('iosProfileCompleteModal')">✕</button>
       </div>
-      <div class="modal-body" style="padding: 14px 16px 22px; text-align: center;">
+      <div class="modal-body" style="padding: 10px 10px 20px; text-align: center;">
+        <div style="font-size: 12px; font-weight: 700; color: #fde047; background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 10px; padding: 8px 10px; margin-bottom: 12px;">
+          🔍 각 설명 사진을 터치하시면 전체화면으로 크게 확대해서 보실 수 있습니다!
+        </div>
+
         <!-- 1단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
-            1️⃣ 크롬 우측 상단 점 3개 메뉴 [ ⋮ ] 터치
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+              1️⃣ 크롬 우측 상단 점 3개 메뉴 [ ⋮ ] 터치
+            </div>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')">🔍 확대</button>
           </div>
-          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
             <img src="/chrome-guide-1.jpg" alt="1단계: 점 3개 메뉴 터치" style="width: 100%; height: auto; display: block;">
+            <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
 
         <!-- 2단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
-            2️⃣ 메뉴에서 [설치 및 바로가기 만들기] 터치
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+              2️⃣ 메뉴에서 [설치 및 바로가기 만들기] 터치
+            </div>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')">🔍 확대</button>
           </div>
-          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
             <img src="/chrome-guide-2.jpg" alt="2단계: 설치 및 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
+            <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
 
         <!-- 3단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
-            3️⃣ [바로가기 만들기 (Chrome에서 바로가기 열기)] 터치!
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+              3️⃣ [바로가기 만들기] 터치!
+            </div>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')">🔍 확대</button>
           </div>
-          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
             <img src="/chrome-guide-3.jpg" alt="3단계: 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
+            <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
 
@@ -634,6 +661,29 @@
           확인 (닫기)
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- [모달 12] 매뉴얼 이미지 전체화면 핀치/터치 줌 뷰어 모달 -->
+  <div class="image-zoom-overlay" id="imageZoomModal">
+    <div class="image-zoom-header">
+      <div class="image-zoom-title" id="imageZoomTitle">🔍 매뉴얼 확대 보기</div>
+      <button type="button" class="image-zoom-close" onclick="closeImageZoom()">✕ 닫기</button>
+    </div>
+    <div class="image-zoom-hint">
+      💡 손가락으로 상하좌우 이동하거나 두 손가락/하단 버튼으로 확대·축소하세요
+    </div>
+    <div class="image-zoom-viewport" id="imageZoomViewport">
+      <div class="image-zoom-canvas" id="imageZoomCanvas">
+        <img id="imageZoomTarget" src="" alt="확대 이미지" ondblclick="toggleDoubleTapZoom(event)">
+      </div>
+    </div>
+    <div class="image-zoom-controls">
+      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(-0.5)">➖ 축소</button>
+      <button type="button" class="btn-zoom-ctrl" id="btnZoomLevelText" onclick="setImageZoom(1)">100%</button>
+      <button type="button" class="btn-zoom-ctrl highlight" onclick="setImageZoom(2.2)">🔍 2.2배</button>
+      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(0.6)">➕ 확대</button>
+      <button type="button" class="btn-zoom-ctrl close" onclick="closeImageZoom()">닫기</button>
     </div>
   </div>
 

@@ -1637,3 +1637,108 @@ function downloadDesktopShortcut() {
   document.body.removeChild(a);
   showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
 }
+
+// 17. 매뉴얼 사진 전체화면 확대/축소/이동 뷰어
+let currentImageZoom = 1;
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+
+function openImageZoom(src, title, initialScale = 1.8, focusArea = 'center') {
+  const modal = document.getElementById('imageZoomModal');
+  const img = document.getElementById('imageZoomTarget');
+  const titleEl = document.getElementById('imageZoomTitle');
+  if (!modal || !img) return;
+
+  if (titleEl) {
+    titleEl.textContent = `🔍 ${title || '매뉴얼 크게 보기'}`;
+  }
+
+  img.onload = () => {
+    setImageZoom(initialScale, focusArea);
+  };
+  img.src = src;
+  modal.classList.add('active');
+  setImageZoom(initialScale, focusArea);
+  initPinchZoomGesture();
+}
+
+function closeImageZoom() {
+  const modal = document.getElementById('imageZoomModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function setImageZoom(scale, focusArea = null) {
+  currentImageZoom = Math.max(1, Math.min(4, Number(scale) || 1));
+  const img = document.getElementById('imageZoomTarget');
+  const canvas = document.getElementById('imageZoomCanvas');
+  const viewport = document.getElementById('imageZoomViewport');
+  const btnText = document.getElementById('btnZoomLevelText');
+
+  if (img) {
+    img.style.width = `${Math.round(currentImageZoom * 100)}%`;
+  }
+  if (canvas) {
+    canvas.style.justifyContent = currentImageZoom > 1 ? 'flex-start' : 'center';
+    canvas.style.alignItems = currentImageZoom > 1 ? 'flex-start' : 'center';
+  }
+  if (btnText) {
+    btnText.textContent = `${Math.round(currentImageZoom * 100)}%`;
+  }
+
+  if (viewport && currentImageZoom > 1) {
+    setTimeout(() => {
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      if (focusArea === 'right' || focusArea === 'top-right') {
+        viewport.scrollLeft = maxScrollLeft;
+        viewport.scrollTop = 0;
+      } else if (focusArea === 'bottom') {
+        viewport.scrollLeft = Math.round(maxScrollLeft * 0.5);
+        viewport.scrollTop = maxScrollTop;
+      } else if (focusArea === 'center') {
+        viewport.scrollLeft = Math.round(maxScrollLeft * 0.5);
+        viewport.scrollTop = Math.round(maxScrollTop * 0.35);
+      }
+    }, 30);
+  }
+}
+
+function adjustImageZoom(delta) {
+  setImageZoom(Math.round((currentImageZoom + delta) * 10) / 10);
+}
+
+function toggleDoubleTapZoom(e) {
+  if (e) e.preventDefault();
+  if (currentImageZoom > 1.2) {
+    setImageZoom(1);
+  } else {
+    setImageZoom(2.2, 'right');
+  }
+}
+
+let isPinchListenerBound = false;
+function initPinchZoomGesture() {
+  if (isPinchListenerBound) return;
+  const viewport = document.getElementById('imageZoomViewport');
+  if (!viewport) return;
+  isPinchListenerBound = true;
+
+  viewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.hypot(dx, dy);
+      pinchStartZoom = currentImageZoom;
+    }
+  }, { passive: true });
+
+  viewport.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && pinchStartDist > 0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / pinchStartDist;
+      setImageZoom(pinchStartZoom * ratio);
+    }
+  }, { passive: true });
+}
