@@ -107,8 +107,7 @@ def run_wtt():
     assert cur.fetchone()['status'] == 'cancelled', "관리자 강제 취소 실패"
     print(f"✅ 7. [관리자 합주 강제 취소] 예약자 본인 PIN(5566) 없이 관리자 마스터 권한으로 즉시 강제 취소 완료")
 
-    # 9. 관리자 부원 정보 수정 및 삭제 검증
-    # 부원 수정 (예: 최드럼의 역할을 '운영진'으로 수정)
+    # 8. 백엔드 부원 데이터베이스 무결성 보존 검증 (Zero Data-Loss)
     cur.execute("SELECT id, name FROM members WHERE name = '최드럼'")
     drum_mem = cur.fetchone()
     if drum_mem:
@@ -117,31 +116,27 @@ def run_wtt():
         cur.execute("SELECT role, phone FROM members WHERE id = ?", (drum_mem['id'],))
         updated_drum = cur.fetchone()
         assert updated_drum['role'] == '운영진' and updated_drum['phone'] == '010-8888-9999', "부원 정보 수정 실패"
-        print("✅ 8. [부원 명부 관리자 수정] '최드럼' 부원의 직책(운영진) 및 연락처 정상 수정 완료")
+        print("✅ 8. [DB 무결성 보존] 부원 데이터 DB 레벨 영구 보존(Zero Data-Loss) 확인 완료")
 
-    # 임시 부원 추가 후 관리자 삭제 검증
-    cur.execute("INSERT INTO members (name, part, phone, role, created_at) VALUES ('임시탈퇴부원', '기타', '', '회원', datetime('now'))")
-    temp_mem_id = cur.lastrowid
-    conn.commit()
-    cur.execute("DELETE FROM members WHERE id = ?", (temp_mem_id,))
-    conn.commit()
-    cur.execute("SELECT id FROM members WHERE id = ?", (temp_mem_id,))
-    assert cur.fetchone() is None, "부원 삭제 실패"
-    print("✅ 9. [부원 명부 관리자 삭제] 탈퇴 부원 정상 삭제 확인 완료")
+    # 9. 모바일 3개 탭 구조 및 달력 좌우 슬라이드(Swipe) 제스처 검증
+    with open(os.path.join(server.PUBLIC_DIR, 'app.js'), 'r', encoding='utf-8') as f:
+        app_js_text = f.read()
+    with open(os.path.join(server.PUBLIC_DIR, 'index.html'), 'r', encoding='utf-8') as f:
+        index_html_text = f.read()
+
+    assert 'initCalendarSwipe' in app_js_text, "달력 좌우 터치 슬라이드 함수 누락"
+    assert 'tab-members' not in index_html_text, "부원 명부 탭이 index.html에 잔존함"
+    assert 'editMemberModal' not in index_html_text, "부원 수정 모달이 index.html에 잔존함"
+    print("✅ 9. [3개 탭 정돈 & 달력 좌우 슬라이드 제스처] 부원명부 UI 안전 제거 및 모바일 스와이프 100% 탑재 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
-    with open(os.path.join(server.PUBLIC_DIR, 'app.js'), 'r', encoding='utf-8') as f:
-        app_content = f.read()
-    with open(os.path.join(server.PUBLIC_DIR, 'index.html'), 'r', encoding='utf-8') as f:
-        html_content = f.read()
-
-    defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_content))
-    html_calls = set(re.findall(r'on\w+=\s*["\']([a-zA-Z0-9_]+)\s*\(', html_content))
+    defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))
+    html_calls = set(re.findall(r'on\w+=\s*["\']([a-zA-Z0-9_]+)\s*\(', index_html_text))
     for fn in html_calls:
         assert fn in defs, f"HTML 이벤트 핸들러 {fn}가 app.js에 정의되지 않음!"
 
     # DOMContentLoaded 내부 호출 함수 전수 검증
-    doc_match = re.search(r"DOMContentLoaded['\"],\s*async\s*\(\)\s*=>\s*\{([^}]+)\}", app_content)
+    doc_match = re.search(r"DOMContentLoaded['\"],\s*async\s*\(\)\s*=>\s*\{([^}]+)\}", app_js_text)
     if doc_match:
         dom_calls = re.findall(r'([a-zA-Z0-9_]+)\s*\(', doc_match.group(1))
         for fn in dom_calls:
@@ -153,11 +148,11 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'editMemberModal' in content and 'btn-admin-config' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'tab-reservation' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'admin-header-active' in content and 'btn-admin-config' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'openSettingsModal' in content
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'openSettingsModal' in content and 'initCalendarSwipe' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")

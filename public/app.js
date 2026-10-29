@@ -42,6 +42,7 @@ function updateAdminHeaderUI() {
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     updateAdminHeaderUI();
+    initCalendarSwipe();
 
     // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
     renderCalendar();
@@ -57,7 +58,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. 기타 탭 데이터 백그라운드 프리로드
     loadNotices();
     loadSetlists();
-    loadMembers();
   } catch (err) {
     console.error('초기 로딩 중 오류 발생:', err);
     // 오류가 발생해도 달력은 무조건 표출
@@ -68,6 +68,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function initTimeOptions() {
   refreshTimeSlotsForDate(selectedDate);
+}
+
+// 달력 모바일 좌우 터치 슬라이드 (Swipe Gesture)
+function initCalendarSwipe() {
+  const calCard = document.querySelector('.calendar-card');
+  if (!calCard) return;
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  calCard.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  calCard.addEventListener('touchend', (e) => {
+    if (e.changedTouches.length !== 1) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const elapsed = Date.now() - touchStartTime;
+
+    const diffX = endX - touchStartX;
+    const diffY = endY - touchStartY;
+
+    // 수평 이동 거리가 50px 이상이고, 수평 이동이 수직 이동의 1.3배 이상이며 600ms 이내 스와이프인 경우
+    if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && elapsed < 600) {
+      if (diffX < 0) {
+        // 오른쪽 -> 왼쪽: 다음 달 (▶)
+        changeMonth(1);
+      } else {
+        // 왼쪽 -> 오른쪽: 이전 달 (◀)
+        changeMonth(-1);
+      }
+    }
+  }, { passive: true });
 }
 
 // 날짜 헬퍼
@@ -823,11 +861,10 @@ async function submitAdminLogin(e) {
     sessionStorage.setItem('oppaen_admin_pin', pin);
     updateAdminHeaderUI();
     closeModal('adminLoginModal');
-    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소, 부원 수정/삭제 및 전체 날짜 선예약/기간 설정 권한이 부여되었습니다.');
+    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소 및 전체 날짜 선예약/기간 설정 권한이 부여되었습니다.');
     await loadBookingWindow();
     renderCalendar();
     renderDayTimeline(selectedDate);
-    loadMembers();
   } catch (err) {
     alert(`오류: ${err.message}`);
   }
@@ -843,7 +880,6 @@ async function logoutAdmin() {
   await loadBookingWindow();
   renderCalendar();
   renderDayTimeline(selectedDate);
-  loadMembers();
 }
 
 async function adminForceCancel(id, timeRange, name) {
@@ -868,66 +904,6 @@ async function adminForceCancel(id, timeRange, name) {
     renderDayTimeline(selectedDate);
   } catch (err) {
     alert(`오류: ${err.message}`);
-  }
-}
-
-function openEditMemberModal(id, name, part, phone, role) {
-  document.getElementById('editMemId').value = id;
-  document.getElementById('editMemName').value = name;
-  document.getElementById('editMemPart').value = part;
-  document.getElementById('editMemPhone').value = phone || '';
-  document.getElementById('editMemRole').value = role || '회원';
-  openModal('editMemberModal');
-}
-
-async function submitEditMember(e) {
-  e.preventDefault();
-  const body = {
-    id: Number(document.getElementById('editMemId').value),
-    name: document.getElementById('editMemName').value.trim(),
-    part: document.getElementById('editMemPart').value,
-    phone: document.getElementById('editMemPhone').value.trim(),
-    role: document.getElementById('editMemRole').value,
-    pin: adminPin
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}/api/members/update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
-    if (!result.success) {
-      alert(result.message || '수정 실패');
-      return;
-    }
-    alert(result.message);
-    closeModal('editMemberModal');
-    loadMembers();
-  } catch (err) {
-    alert(`수정 오류: ${err.message}`);
-  }
-}
-
-async function deleteMember(id, name) {
-  if (!confirm(`정말 '${name}' 부원을 명부에서 삭제하시겠습니까?`)) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/api/members/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id, pin: adminPin })
-    });
-    const result = await res.json();
-    if (!result.success) {
-      alert(result.message || '삭제 실패');
-      return;
-    }
-    alert(result.message);
-    loadMembers();
-  } catch (err) {
-    alert(`삭제 오류: ${err.message}`);
   }
 }
 
@@ -1010,89 +986,7 @@ async function submitSetlist(e) {
   }
 }
 
-// 11. 부원 명부 로드
-async function loadMembers() {
-  const container = document.getElementById('memberGrid');
-  try {
-    const res = await fetch(`${API_BASE}/api/members`);
-    const data = await res.json();
-    if (!data.success) throw new Error(data.message);
-
-    const members = data.members || [];
-    if (members.length === 0) {
-      container.innerHTML = '<div class="empty-state" style="grid-column:span 2;"><div class="empty-icon">👥</div><div class="empty-text">등록된 부원이 없습니다.</div></div>';
-      return;
-    }
-
-    const partIcons = {
-      '보컬': '🎤', '일렉기타': '🎸', '어쿠스틱기타': '🪕',
-      '베이스': '🎸', '드럼': '🥁', '건반': '🎹'
-    };
-
-    function getRoleBadge(role) {
-      if (role === '운영자') return '<span class="member-role" style="color:#f59e0b; font-weight:800;">[운영자 👑]</span>';
-      if (role === '운영진') return '<span class="member-role" style="color:#00dfd8; font-weight:700;">[운영진 ⭐]</span>';
-      return '<span class="member-role" style="color:var(--text-dim);">[회원]</span>';
-    }
-
-    container.innerHTML = members.map(m => `
-      <div class="member-card">
-        <div class="member-avatar">${partIcons[m.part] || '🎵'}</div>
-        <div class="member-details">
-          <div class="member-name">
-            ${escapeHtml(m.name)}
-            ${getRoleBadge(m.role || '회원')}
-          </div>
-          <div class="member-part">${m.part} ${m.phone ? `<span style="font-size:10px;color:var(--text-dim);">(${escapeHtml(m.phone)})</span>` : ''}</div>
-        </div>
-        ${isAdmin ? `
-          <div class="member-card-admin-actions">
-            <button class="btn-mem-action edit" title="부원 수정" onclick="openEditMemberModal(${m.id}, '${escapeHtml(m.name)}', '${escapeHtml(m.part)}', '${escapeHtml(m.phone || '')}', '${escapeHtml(m.role || '회원')}')">✏️</button>
-            <button class="btn-mem-action del" title="부원 삭제" onclick="deleteMember(${m.id}, '${escapeHtml(m.name)}')">🗑️</button>
-          </div>
-        ` : ''}
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error('부원 로드 실패:', err);
-  }
-}
-
-function openMemberModal() {
-  document.getElementById('memName').value = '';
-  document.getElementById('memPhone').value = '';
-  openModal('memberModal');
-}
-
-async function submitMember(e) {
-  e.preventDefault();
-  const body = {
-    name: document.getElementById('memName').value.trim(),
-    part: document.getElementById('memPart').value,
-    phone: document.getElementById('memPhone').value.trim(),
-    role: document.getElementById('memRole').value
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}/api/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
-    if (!result.success) {
-      alert(result.message || '등록 실패');
-      return;
-    }
-    alert(result.message);
-    closeModal('memberModal');
-    loadMembers();
-  } catch (err) {
-    alert(`오류: ${err.message}`);
-  }
-}
-
-// 12. 탭 전환
+// 11. 탭 전환
 function switchTab(tabId, element) {
   document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));

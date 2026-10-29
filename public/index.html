@@ -126,19 +126,6 @@
       </div>
     </main>
 
-    <!-- 4. 부원 명부 탭 -->
-    <main id="tab-members" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">👥 오뺀 부원 명부</div>
-        <button class="section-action-btn" onclick="openMemberModal()">
-          <span>➕ 부원 등록</span>
-        </button>
-      </div>
-      <div class="member-grid" id="memberGrid">
-        <!-- JS 렌더링 -->
-      </div>
-    </main>
-
     <!-- 하단 바텀 네비게이션 바 -->
     <nav class="bottom-nav">
       <div class="nav-item active" data-tab="tab-reservation" onclick="switchTab('tab-reservation', this)">
@@ -152,10 +139,6 @@
       <div class="nav-item" data-tab="tab-setlist" onclick="switchTab('tab-setlist', this)">
         <div class="nav-icon">🎵</div>
         <div>합주곡</div>
-      </div>
-      <div class="nav-item" data-tab="tab-members" onclick="switchTab('tab-members', this)">
-        <div class="nav-icon">👥</div>
-        <div>부원명부</div>
       </div>
     </nav>
   </div>
@@ -404,51 +387,6 @@
     </div>
   </div>
 
-  <!-- [모달 6] 부원 등록 모달 -->
-  <div class="modal-overlay" id="memberModal">
-    <div class="bottom-sheet">
-      <div class="sheet-header">
-        <div class="sheet-title">👥 오뺀 부원 등록</div>
-        <button class="sheet-close-btn" onclick="closeModal('memberModal')">✕</button>
-      </div>
-      <form id="memberForm" onsubmit="submitMember(event)">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">부원 이름</label>
-            <input type="text" class="form-input" id="memName" placeholder="예: 홍길동" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">담당 파트</label>
-            <select class="form-select" id="memPart" required>
-              <option value="보컬">보컬 🎤</option>
-              <option value="일렉기타">일렉기타 🎸</option>
-              <option value="어쿠스틱기타">어쿠스틱기타 🪕</option>
-              <option value="베이스">베이스 🎸</option>
-              <option value="드럼">드럼 🥁</option>
-              <option value="건반">건반 🎹</option>
-              <option value="기타/유닛">기타/유닛 🎶</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">연락처</label>
-            <input type="tel" class="form-input" id="memPhone" placeholder="010-0000-0000">
-          </div>
-          <div class="form-group">
-            <label class="form-label">직책 / 역할</label>
-            <select class="form-select" id="memRole">
-              <option value="회원" selected>회원</option>
-              <option value="운영진">운영진</option>
-              <option value="운영자">운영자</option>
-            </select>
-          </div>
-        </div>
-        <button type="submit" class="btn-submit">부원 등록하기</button>
-      </form>
-    </div>
-  </div>
-
   <!-- [모달 7] LTE/5G 접속 안내 모달 -->
   <div class="modal-overlay" id="shareModal">
     <div class="bottom-sheet">
@@ -480,59 +418,13 @@
       </div>
       <form id="adminLoginForm" onsubmit="submitAdminLogin(event)">
         <div style="font-size:13px; color:var(--text-sub); margin-bottom:14px; line-height:1.5;">
-          관리자 비밀번호를 입력하시면 <strong>합주 강제 취소</strong> 및 <strong>부원 정보 수정/삭제</strong> 권한이 활성화됩니다.
+          관리자 비밀번호를 입력하시면 <strong>합주 강제 취소</strong> 및 <strong>예약 오픈 기간 설정</strong> 권한이 활성화됩니다.
         </div>
         <div class="form-group">
           <label class="form-label">관리자 비밀번호 (PIN)</label>
           <input type="password" maxlength="4" class="form-input" id="adminInputPin" placeholder="기본 PIN: 9999" required autofocus>
         </div>
         <button type="submit" class="btn-submit" style="background:linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">관리자 모드 실행</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- [모달 9] 부원 정보 수정 모달 (관리자 전용) -->
-  <div class="modal-overlay" id="editMemberModal">
-    <div class="bottom-sheet">
-      <div class="sheet-header">
-        <div class="sheet-title">✏️ 부원 정보 수정 (관리자)</div>
-        <button class="sheet-close-btn" onclick="closeModal('editMemberModal')">✕</button>
-      </div>
-      <form id="editMemberForm" onsubmit="submitEditMember(event)">
-        <input type="hidden" id="editMemId">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">부원 이름</label>
-            <input type="text" class="form-input" id="editMemName" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">담당 파트</label>
-            <select class="form-select" id="editMemPart" required>
-              <option value="보컬">보컬 🎤</option>
-              <option value="일렉기타">일렉기타 🎸</option>
-              <option value="어쿠스틱기타">통기타 🪕</option>
-              <option value="베이스">베이스 🎸</option>
-              <option value="드럼">드럼 🥁</option>
-              <option value="건반">건반 🎹</option>
-              <option value="기타/유닛">기타/유닛 🎶</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">연락처</label>
-            <input type="tel" class="form-input" id="editMemPhone">
-          </div>
-          <div class="form-group">
-            <label class="form-label">직책 / 역할</label>
-            <select class="form-select" id="editMemRole">
-              <option value="회원">회원</option>
-              <option value="운영진">운영진</option>
-              <option value="운영자">운영자</option>
-            </select>
-          </div>
-        </div>
-        <button type="submit" class="btn-submit">부원 정보 저장</button>
       </form>
     </div>
   </div>
