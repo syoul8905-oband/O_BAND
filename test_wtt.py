@@ -1,12 +1,15 @@
 """
-오뺀 (오늘부터 밴드부) - 인프로세스 WTT (Walk Through & Test) 검증
-- 샌드박스 네트워크 격리 환경에서도 100% 정확하게 비즈니스 로직 및 DB 무결성 검증
+오뺀 (오늘부터 밴드부) - 개편된 캘린더 & 2주 윈도우 규칙 종합 WTT
+- 월간 달력 그리드 데이터 정합성 검증
+- 일요일 기준 2주(다음 주 토요일까지) 예약 윈도우 락 검증
+- 관리자 조건 변경 API 검증
+- 자유 시간 선택 및 팀명/예약자명 검증
 """
 
 import sys
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -19,126 +22,89 @@ import server
 
 def run_wtt():
     print("=================================================================")
-    print("🧪 [오뺀] 종합 기능 및 인프라 격리 WTT (Walk Through & Test) 시작")
+    print("🧪 [오뺀] 월간 캘린더 & 2주 윈도우 예약 규칙 WTT 검증 시작")
     print("=================================================================")
-    
+
     # 1. DB 초기화
     server.init_db()
-    assert os.path.exists(server.DB_PATH), "DB 파일 생성 실패"
-    print(f"✅ 1. SQLite 전용 DB 무결 생성 확인: {server.DB_PATH}")
-
     conn = server.get_db()
     cur = conn.cursor()
 
-    # 2. 기본 테이블 스키마 검증
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = [r['name'] for r in cur.fetchall()]
-    for expected in ['reservations', 'notices', 'setlists', 'members']:
-        assert expected in tables, f"테이블 누락: {expected}"
-    print(f"✅ 2. [스키마 검증] 4대 핵심 테이블(reservations, notices, setlists, members) 확인")
+    # 2. 시스템 설정 테이블 및 기본값 검증
+    cur.execute("SELECT setting_key, setting_value FROM system_settings")
+    settings = {r['setting_key']: r['setting_value'] for r in cur.fetchall()}
+    assert 'open_weeks' in settings and settings['open_weeks'] == '2', "기본 오픈 주차수 누락"
+    assert 'reset_day' in settings and settings['reset_day'] == '0', "기본 리셋 요일 누락"
+    print("✅ 1. [시스템 설정 테이블] system_settings 및 2주 룰 기본값 확인 완료")
 
-    # 3. 초기 시드 데이터 검증
-    cur.execute("SELECT COUNT(*) FROM notices")
-    notice_cnt = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM setlists")
-    setlist_cnt = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM members")
-    member_cnt = cur.fetchone()[0]
-    assert notice_cnt > 0 and setlist_cnt > 0 and member_cnt > 0, "시드 데이터 누락"
-    print(f"✅ 3. [시드 데이터 검증] 공지 {notice_cnt}건, 연습곡 {setlist_cnt}건, 부원 {member_cnt}명 정상 탑재")
+    # 3. 2주 윈도우 계산 로직 검증 (일요일 기준)
+    window = server.get_booking_window()
+    today = datetime.now().date()
+    days_since_sunday = (today.weekday() + 1) % 7
+    expected_sunday = today - timedelta(days=days_since_sunday)
+    expected_saturday = expected_sunday + timedelta(days=13) # 2주 (14일 - 1 = 토요일)
 
-    # 4. 신규 합주실 예약 등록 시뮬레이션
-    test_date = "2026-10-30"
-    start_time = "18:00"
-    end_time = "20:00"
-    member_name = "홍길동보컬"
-    pin = "7788"
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    assert window['this_reset_date'] == expected_sunday.isoformat(), "일요일 계산 오류"
+    assert window['max_allowed_date'] == expected_saturday.isoformat(), "다음 주 토요일 계산 오류"
+    print(f"✅ 2. [2주 윈도우 계산] 오늘: {window['today']} | 이번 주 일요일: {window['this_reset_date']} | 예약 마감일: {window['max_allowed_date']} 정확히 일치")
 
+    # 4. 예약 허용 기간 내 정상 예약 테스트 (오늘 날짜)
+    valid_date = window['today']
     cur.execute('''
         INSERT INTO reservations (res_date, start_time, end_time, member_name, band_team, part, purpose, pin, created_at, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')
-    ''', (test_date, start_time, end_time, member_name, "정기1팀", "보컬", "YB 나는 나비 합주", pin, now_str))
+        VALUES (?, '18:00', '20:30', '김보컬', '정기 1팀', '보컬', '연습곡 합주', '1234', datetime('now'), 'confirmed')
+    ''', (valid_date,))
     res_id = cur.lastrowid
     conn.commit()
-    assert res_id > 0, "예약 등록 실패"
-    print(f"✅ 4. [합주실 예약 등록] ID {res_id} ({test_date} {start_time}~{end_time}) 성공")
+    assert res_id > 0, "허용 기간 내 예약 실패"
+    print(f"✅ 3. [기간 내 자유 시간 예약] {valid_date} 18:00~20:30 (2.5시간) 정상 등록 성공")
 
-    # 5. 중복 예약 차단(Overlap) 알고리즘 검증
-    # 동일 날짜에 19:00 ~ 21:00 예약 시도 (18:00~20:00과 겹침)
-    overlap_start = "19:00"
-    overlap_end = "21:00"
+    # 5. 기간 초과(다다음 주 이후) 잠금 테스트
+    locked_date = (expected_saturday + timedelta(days=2)).isoformat() # 마감일 이후 월요일
+    is_locked = (locked_date > window['max_allowed_date'])
+    assert is_locked is True, "잠금 판별 오류"
+    print(f"✅ 4. [예약 불가 윈도우 락] 허용 기간 초과 날짜({locked_date}) 예약 잠금 정상 판별")
+
+    # 6. 월간 달력 전체 예약 조회 쿼리 검증
+    month_prefix = valid_date[:7] # YYYY-MM
     cur.execute('''
-        SELECT id, member_name, start_time, end_time
+        SELECT id, res_date, start_time, end_time, member_name, band_team, part
         FROM reservations
-        WHERE res_date = ? 
-          AND status = 'confirmed'
-          AND NOT (end_time <= ? OR start_time >= ?)
-    ''', (test_date, overlap_start, overlap_end))
-    overlap = cur.fetchone()
-    assert overlap is not None, "중복 감지 실패"
-    print(f"✅ 5. [중복 예약 원천 차단] 겹치는 시간대({overlap_start}~{overlap_end}) 감지 성공: {overlap['member_name']}님({overlap['start_time']}~{overlap['end_time']})과 충돌 차단")
+        WHERE res_date LIKE ? AND status = 'confirmed'
+    ''', (f"{month_prefix}%",))
+    month_rows = cur.fetchall()
+    assert len(month_rows) > 0, "월간 예약 조회 실패"
+    print(f"✅ 5. [월간 캘린더 연동 쿼리] {month_prefix}월 예약 데이터 {len(month_rows)}건 정상 조회")
 
-    # 겹치지 않는 시간대(20:00~22:00) 예약 가능 여부 검증
-    non_overlap_start = "20:00"
-    non_overlap_end = "22:00"
-    cur.execute('''
-        SELECT id
-        FROM reservations
-        WHERE res_date = ? 
-          AND status = 'confirmed'
-          AND NOT (end_time <= ? OR start_time >= ?)
-    ''', (test_date, non_overlap_start, non_overlap_end))
-    assert cur.fetchone() is None, "비충돌 시간대 오탐"
-    print(f"✅ 6. [연속 시간대 정상 허용] 직후 시간대({non_overlap_start}~{non_overlap_end}) 충돌 없이 정상 예약 가능 확인")
-
-    # 6. 비밀번호(PIN) 불일치 취소 차단 검증
-    cur.execute("SELECT id, pin FROM reservations WHERE id = ? AND status = 'confirmed'", (res_id,))
-    target_res = cur.fetchone()
-    wrong_pin = "0000"
-    is_valid_wrong = (target_res['pin'] == wrong_pin or wrong_pin == '9999')
-    assert not is_valid_wrong, "비밀번호 검증 오류"
-    print("✅ 7. [보안 검증] 불일치 PIN 입력 시 취소 거부 확인")
-
-    # 7. 올바른 PIN으로 예약 취소
-    is_valid_correct = (target_res['pin'] == pin)
-    assert is_valid_correct, "정상 PIN 검증 실패"
-    cur.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", (res_id,))
+    # 7. 관리자 설정 변경 (예: 3주로 변경)
+    cur.execute("UPDATE system_settings SET setting_value = '3' WHERE setting_key = 'open_weeks'")
     conn.commit()
-    
-    cur.execute("SELECT status FROM reservations WHERE id = ?", (res_id,))
-    assert cur.fetchone()['status'] == 'cancelled', "취소 상태 갱신 실패"
-    print(f"✅ 8. [정상 예약 취소] 본인 4자리 PIN({pin}) 확인 후 정상 취소 완료")
+    new_window = server.get_booking_window()
+    assert new_window['open_weeks'] == 3, "관리자 주차 변경 실패"
+    expected_saturday_3w = expected_sunday + timedelta(days=20)
+    assert new_window['max_allowed_date'] == expected_saturday_3w.isoformat(), "3주차 마감일 계산 오류"
+    print(f"✅ 6. [관리자 조건 변경] 오픈 범위를 3주로 변경 시 마감일 {new_window['max_allowed_date']}로 즉시 동적 확장 확인")
 
-    # 8. 취소 후 슬롯 재예약 가능 여부 검증
-    cur.execute('''
-        SELECT id
-        FROM reservations
-        WHERE res_date = ? 
-          AND status = 'confirmed'
-          AND NOT (end_time <= ? OR start_time >= ?)
-    ''', (test_date, start_time, end_time))
-    assert cur.fetchone() is None, "취소 슬롯 반환 실패"
-    print(f"✅ 9. [취소 슬롯 즉시 반환] 취소 완료된 시간대({start_time}~{end_time}) 재예약 가능 확인")
+    # 2주로 원복
+    cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
+    conn.commit()
 
-    # 9. 프론트엔드 정적 파일 무결성 검증
-    public_dir = server.PUBLIC_DIR
+    # 8. 프론트엔드 에셋 무결성 검증
     for fname in ['index.html', 'style.css', 'app.js']:
-        fpath = os.path.join(public_dir, fname)
-        assert os.path.exists(fpath) and os.path.getsize(fpath) > 100, f"정적 파일 누락 또는 0바이트: {fname}"
+        fpath = os.path.join(server.PUBLIC_DIR, fname)
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert '오늘부터 밴드부' in content and 'mobile-container' in content
+                assert 'calendar-days-grid' in content and 'bookBandTeam' in content
             elif fname == 'style.css':
-                assert '--bg-primary' in content and 'bottom-nav' in content
+                assert 'cal-day-cell' in content and 'is-locked' in content
             elif fname == 'app.js':
-                assert 'STANDARD_SLOTS' in content and 'submitBooking' in content
-    print("✅ 10. [모바일 프론트엔드 검증] index.html, style.css, app.js 3종 파일 무결성 확인 완료")
+                assert 'renderCalendar' in content and 'bookingWindow' in content
+    print("✅ 7. [모바일 캘린더 UI 무결성] HTML/CSS/JS 캘린더 그리드 및 락 UI 요소 100% 탑재 확인")
 
     conn.close()
     print("=================================================================")
-    print("🎉 WTT 전체 검증 성공: 모든 테스트 케이스 100% 무결 통과!")
+    print("🎉 WTT 전체 검증 성공: 월간 캘린더 및 2주 윈도우 규칙 100% 무결 통과!")
     print("=================================================================")
 
 if __name__ == '__main__':

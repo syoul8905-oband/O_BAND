@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta, date
 
 if sys.stdout.encoding != 'utf-8':
     try:
@@ -100,6 +100,25 @@ def init_db():
     )
     ''')
     
+    # 5. 시스템 환경설정 테이블 (예약 오픈 룰 등)
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS system_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        description TEXT,
+        updated_at TEXT NOT NULL
+    )
+    ''')
+    
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute('''
+        INSERT OR IGNORE INTO system_settings (setting_key, setting_value, description, updated_at)
+        VALUES 
+        ('open_weeks', '2', '일요일 기준 예약 오픈 주차 수 (달력상 2줄)', ?),
+        ('reset_day', '0', '리셋 기준 요일 (0: 일요일, 1: 월요일)', ?),
+        ('admin_pin', '9999', '관리자 설정 변경 PIN', ?)
+    ''', (now_str, now_str, now_str))
+    
     # 초기 샘플 공지사항 및 곡 추가 (비어있을 때만)
     cur.execute("SELECT COUNT(*) FROM notices")
     if cur.fetchone()[0] == 0:
@@ -144,6 +163,34 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+def get_booking_window():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT setting_key, setting_value FROM system_settings")
+    settings = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
+    conn.close()
+
+    open_weeks = int(settings.get('open_weeks', 2))
+    reset_day = int(settings.get('reset_day', 0)) # 0: 일요일
+    
+    today = datetime.now().date()
+    # Python: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+    # reset_day 0(일요일)일 때 일요일까지의 거리 = (today.weekday() + 1) % 7
+    days_since_reset = (today.weekday() + 1) % 7 if reset_day == 0 else (today.weekday() - (reset_day - 1)) % 7
+    this_reset_date = today - timedelta(days=days_since_reset)
+    
+    # 허용 종료일 = 이번 주 일요일 + (주차수 * 7일) - 1일 (다음 주 토요일)
+    max_allowed_date = this_reset_date + timedelta(days=(open_weeks * 7) - 1)
+    
+    return {
+        'today': today.isoformat(),
+        'this_reset_date': this_reset_date.isoformat(),
+        'max_allowed_date': max_allowed_date.isoformat(),
+        'open_weeks': open_weeks,
+        'reset_day': reset_day,
+        'description': f"매주 일요일 기준 다음 주 토요일({max_allowed_date.isoformat()})까지 예약 가능"
+    }
 
 class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -266,6 +313,11 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'success': True, 'members': rows})
             return
 
+        # 5. 시스템 설정 및 예약 가능 윈도우 조회: /api/settings
+        if path == '/api/settings':
+            self.send_json({'success': True, 'window': get_booking_window()})
+            return
+
         # 기본 정적 파일 서빙 (public 디렉터리)
         return super().do_GET()
 
@@ -291,11 +343,31 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             pin = str(body.get('pin', '')).strip()
 
             if not res_date or not start_time or not end_time or not member_name or not pin:
-                self.send_json({'success': False, 'message': '날짜, 시간, 예약자명, 4자리 비밀번호(PIN)는 필수입니다.'}, 400)
+                self.send_json({'success': False, 'message': '날짜, 시작/종료 시간, 예약자명, 4자리 비밀번호(PIN)는 필수입니다.'}, 400)
+                return
+
+            if start_time >= end_time:
+                self.send_json({'success': False, 'message': '종료 시간은 시작 시간보다 늦어야 합니다.'}, 400)
                 return
 
             if len(pin) != 4 or not pin.isdigit():
                 self.send_json({'success': False, 'message': '비밀번호(PIN)는 숫자 4자리로 입력해 주세요.'}, 400)
+                return
+
+            # 예약 오픈 기간 (2주 윈도우) 검증 (관리자 PIN 9999는 예외 허용)
+            window = get_booking_window()
+            today_str = window['today']
+            max_date_str = window['max_allowed_date']
+            
+            if res_date < today_str and pin != '9999':
+                self.send_json({'success': False, 'message': '지난 날짜는 예약할 수 없습니다.'}, 400)
+                return
+
+            if res_date > max_date_str and pin != '9999':
+                self.send_json({
+                    'success': False,
+                    'message': f'해당 날짜는 아직 예약이 오픈되지 않았습니다.\n(현재 예약 가능 기간: {today_str} ~ {max_date_str})\n매주 일요일에 다음 주 예약이 오픈됩니다.'
+                }, 400)
                 return
 
             # 중복 예약 검증 (동일 날짜에 겹치는 시간대 체크)
@@ -466,6 +538,34 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             except sqlite3.IntegrityError:
                 conn.close()
                 self.send_json({'success': False, 'message': '이미 등록된 부원 이름입니다.'}, 409)
+            return
+
+        # 7. 시스템 설정 변경 (관리자 PIN 필요): POST /api/settings
+        if path == '/api/settings':
+            pin = str(body.get('pin', '')).strip()
+            open_weeks = body.get('open_weeks')
+            reset_day = body.get('reset_day')
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            row = cur.fetchone()
+            admin_pin = row['setting_value'] if row else '9999'
+
+            if pin != admin_pin:
+                conn.close()
+                self.send_json({'success': False, 'message': '관리자 비밀번호가 일치하지 않습니다.'}, 403)
+                return
+
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if open_weeks is not None:
+                cur.execute("UPDATE system_settings SET setting_value = ?, updated_at = ? WHERE setting_key = 'open_weeks'", (str(open_weeks), now_str))
+            if reset_day is not None:
+                cur.execute("UPDATE system_settings SET setting_value = ?, updated_at = ? WHERE setting_key = 'reset_day'", (str(reset_day), now_str))
+
+            conn.commit()
+            conn.close()
+            self.send_json({'success': True, 'message': '예약 설정이 성공적으로 변경되었습니다!', 'window': get_booking_window()})
             return
 
         self.send_json({'success': False, 'message': '지원하지 않는 API 경로입니다.'}, 404)
