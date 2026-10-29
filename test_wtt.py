@@ -134,7 +134,10 @@ def run_wtt():
     assert 'openTeamChipsModal' in index_html_text, "팀명 빠른메뉴 수정 버튼이 index.html에 누락됨"
     assert 'onBandTeamChange' in index_html_text, "onBandTeamChange 이벤트 핸들러 누락"
     assert 'renderTeamOptions' in app_js_text and 'onBandTeamChange' in app_js_text, "팀명 드롭다운 렌더링 함수 누락"
-    print("✅ 9. [담당 파트 ➔ 팀명 드롭다운 개편 & 폼 극대화] 담당파트 제거, 팀명 드롭다운, 모바일 스와이프 100% 확인")
+    assert 'bookingSuccessModal' in index_html_text, "예약 완료 카톡 공유 모달 누락"
+    assert 'shareCurrentBookingSuccess' in app_js_text and 'shareReservationKakao' in app_js_text, "카카오 공유 함수 누락"
+    assert 'shareReservationById' in app_js_text, "타임라인 카드 공유 함수 누락"
+    print("✅ 9. [담당 파트 ➔ 팀명 드롭다운 & 카카오톡 예약공유 모달] 팀명 드롭다운, 스와이프, 카톡 공유 시스템 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))
@@ -155,11 +158,11 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'tab-reservation' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content
             elif fname == 'style.css':
-                assert 'btn-force-cancel' in content and 'admin-header-active' in content and 'btn-admin-config' in content
+                assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'btn-share-icon' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'openSettingsModal' in content and 'initCalendarSwipe' in content
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")

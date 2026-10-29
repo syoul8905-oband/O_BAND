@@ -381,14 +381,16 @@ function renderDayTimeline(dateStr) {
         <div class="timeline-time">
           <span>⏰ ${r.start_time} ~ ${r.end_time}</span>
           <span class="badge-team">${escapeHtml(r.band_team || '전체합주')}</span>
-          <span class="badge-part">${escapeHtml(r.part || '파트')}</span>
         </div>
         <div class="timeline-team">
           👤 ${escapeHtml(r.member_name)} 님 예약
         </div>
         ${r.purpose ? `<div class="timeline-sub">💡 ${escapeHtml(r.purpose)}</div>` : ''}
       </div>
-      <div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button type="button" class="btn-share-icon" onclick="shareReservationById(${r.id})">
+          💬 공유
+        </button>
         ${isAdmin ? `
           <button class="btn-force-cancel" onclick="adminForceCancel(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
             👑 강제취소
@@ -745,13 +747,21 @@ async function submitBooking(e) {
       alert(result.message || '예약 실패');
       return;
     }
-    alert('🎉 합주실 예약이 성공적으로 완료되었습니다!');
     closeModal('bookingModal');
 
     // 캘린더 데이터 갱신
     await loadMonthData(calYear, calMonth);
     renderCalendar();
     renderDayTimeline(selectedDate);
+
+    // 예약 완료 & 카톡 공유 모달 표출
+    openBookingSuccessModal({
+      res_date: body.res_date,
+      start_time: body.start_time,
+      end_time: body.end_time,
+      band_team: body.band_team,
+      member_name: body.member_name
+    });
   } catch (err) {
     alert(`오류 발생: ${err.message}`);
   }
@@ -1128,4 +1138,148 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// 14. 카카오톡 예약 내용 공유 시스템
+let lastBookingInfo = null;
+let toastTimer = null;
+
+function openBookingSuccessModal(info) {
+  lastBookingInfo = info;
+  const summaryEl = document.getElementById('bookingSuccessSummary');
+  if (!summaryEl) return;
+
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const d = new Date(info.res_date + 'T00:00:00');
+  const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
+
+  let durationText = '';
+  if (info.start_time && info.end_time) {
+    const [sh, sm] = info.start_time.split(':').map(Number);
+    const [eh, em] = info.end_time.split(':').map(Number);
+    const durHours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+    if (durHours > 0) durationText = ` (${durHours}시간)`;
+  }
+
+  summaryEl.innerHTML = `
+    <div class="success-card-row">
+      <span class="success-card-label">📅 일시</span>
+      <span class="success-card-val">${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}</span>
+    </div>
+    <div class="success-card-row">
+      <span class="success-card-label">🎸 팀명</span>
+      <span class="success-card-val">${escapeHtml(info.band_team || '전체합주')}</span>
+    </div>
+    <div class="success-card-row">
+      <span class="success-card-label">👤 예약자</span>
+      <span class="success-card-val">${escapeHtml(info.member_name)} 님</span>
+    </div>
+    <div class="success-card-row">
+      <span class="success-card-label">📍 장소</span>
+      <span class="success-card-val">오뺀 합주실</span>
+    </div>
+  `;
+
+  openModal('bookingSuccessModal');
+}
+
+function shareCurrentBookingSuccess() {
+  if (!lastBookingInfo) return;
+  shareReservationKakao(lastBookingInfo);
+}
+
+function shareReservationById(id) {
+  const r = monthReservations.find(item => item.id === id);
+  if (r) {
+    shareReservationKakao({
+      res_date: r.res_date,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      band_team: r.band_team,
+      member_name: r.member_name
+    });
+  }
+}
+
+function shareReservationDirect(resDate, startTime, endTime, bandTeam, memberName) {
+  shareReservationKakao({
+    res_date: resDate,
+    start_time: startTime,
+    end_time: endTime,
+    band_team: bandTeam,
+    member_name: memberName
+  });
+}
+
+function shareReservationKakao(info) {
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const d = new Date(info.res_date + 'T00:00:00');
+  const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
+
+  let durationText = '';
+  if (info.start_time && info.end_time) {
+    const [sh, sm] = info.start_time.split(':').map(Number);
+    const [eh, em] = info.end_time.split(':').map(Number);
+    const durHours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+    if (durHours > 0) durationText = ` (${durHours}시간)`;
+  }
+
+  const shareUrl = window.location.origin && window.location.origin.startsWith('http')
+    ? window.location.origin
+    : 'https://o-band.onrender.com';
+
+  const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name}\n📍 장소: 오뺀 합주실\n\n👉 합주 일정 확인하기:\n${shareUrl}`;
+
+  if (navigator.share) {
+    navigator.share({
+      title: `오늘부터 밴드부 합주 예약 (${info.band_team || '합주'})`,
+      text: shareText,
+      url: shareUrl
+    }).catch(err => {
+      if (err.name !== 'AbortError') {
+        copyShareTextFallback(shareText);
+      }
+    });
+  } else {
+    copyShareTextFallback(shareText);
+  }
+}
+
+function copyShareTextFallback(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.');
+    }).catch(() => {
+      legacyCopyText(text);
+    });
+  } else {
+    legacyCopyText(text);
+  }
+}
+
+function legacyCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.');
+  } catch (e) {
+    prompt('아래 문구를 복사하여 카카오톡에 붙여넣으세요:', text);
+  }
+  document.body.removeChild(ta);
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toastAlert');
+  if (!el) return;
+  el.innerHTML = msg.replace(/\n/g, '<br>');
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+  }, 3000);
 }

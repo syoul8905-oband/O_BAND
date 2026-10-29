@@ -434,6 +434,30 @@
     </div>
   </div>
 
+  <!-- [모달 10] 합주실 예약 완료 및 카카오톡 공유 모달 -->
+  <div class="modal-overlay" id="bookingSuccessModal">
+    <div class="bottom-sheet" style="text-align: center;">
+      <div class="sheet-header" style="justify-content: center; position: relative;">
+        <div class="sheet-title" style="font-size: 18px; color: var(--accent-cyan);">🎉 합주실 예약 완료!</div>
+        <button class="sheet-close-btn" style="position: absolute; right: 0;" onclick="closeModal('bookingSuccessModal')">✕</button>
+      </div>
+      <div class="booking-success-card" id="bookingSuccessSummary">
+        <!-- JS 동적 렌더링 -->
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 18px;">
+        <button type="button" class="btn-kakao-share" onclick="shareCurrentBookingSuccess()">
+          <span style="font-size: 17px;">💬</span> 카카오톡으로 공유하기
+        </button>
+        <button type="button" class="btn-close-gray" onclick="closeModal('bookingSuccessModal')">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 메시지 (클립보드 복사 등) -->
+  <div id="toastAlert" class="toast-alert"></div>
+
   <script src="app.js"></script>
 </body>
 </html>
