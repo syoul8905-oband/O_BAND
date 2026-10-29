@@ -1154,6 +1154,12 @@ function switchTab(tabId, element) {
 function openModal(id) {
   const m = document.getElementById(id);
   if (m) m.classList.add('active');
+
+  if (id === 'iosInstallGuideModal') {
+    const isKakao = /KAKAOTALK/i.test(navigator.userAgent || '');
+    const alertBox = document.getElementById('iosKakaoAlert');
+    if (alertBox) alertBox.style.display = isKakao ? 'block' : 'none';
+  }
 }
 
 function closeModal(id) {
@@ -1519,7 +1525,7 @@ function executeShortcutCreation() {
 
   // 1. 카카오톡 인앱 브라우저: 외부 브라우저(크롬/사파리)로 탈출 실행
   if (isKakao) {
-    showToast('🌐 크롬 / 기본 브라우저로 이동합니다...');
+    showToast(isIOS ? '🌐 사파리(Safari) 브라우저로 이동합니다...' : '🚀 크롬(Chrome) 브라우저로 이동합니다...');
     escapeKakaoToExternalBrowser();
     return;
   }
@@ -1557,6 +1563,12 @@ function executeShortcutCreation() {
 }
 
 function downloadIosProfile() {
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua)) {
+    showToast('🌐 사파리(Safari) 브라우저로 전환합니다...');
+    escapeKakaoToExternalBrowser();
+    return;
+  }
   showToast('📥 애플 공식 구성 프로파일을 다운로드합니다...');
   window.location.href = '/install.mobileconfig';
 }

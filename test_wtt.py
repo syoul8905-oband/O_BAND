@@ -175,6 +175,13 @@ def run_wtt():
     assert 'application/x-apple-aspen-config' in out1, "/install.mobileconfig MIME 타입 오류"
     assert 'com.apple.webClip.managed' in out1, "/install.mobileconfig WebClip 페이로드 오류"
 
+    import plistlib
+    raw_bytes = sock1.wfile.getvalue()
+    _, body_bytes = raw_bytes.split(b'\r\n\r\n', 1)
+    parsed_profile = plistlib.loads(body_bytes)
+    assert parsed_profile['PayloadType'] == 'Configuration', "루트 PayloadType이 Configuration이 아님"
+    assert parsed_profile['PayloadContent'][0]['PayloadType'] == 'com.apple.webClip.managed', "Child WebClip 페이로드 오류"
+
     sock2 = MockSocket(b'GET /download-shortcut HTTP/1.1\r\nHost: localhost\r\n\r\n')
     server.BandClubRequestHandler(sock2, ('127.0.0.1', 1234), None)
     out2 = sock2.wfile.getvalue().decode('utf-8', errors='ignore')

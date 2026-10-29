@@ -14,6 +14,7 @@ import os
 import sys
 import urllib.parse
 import base64
+import plistlib
 from datetime import datetime, timedelta, date
 
 if sys.stdout.encoding != 'utf-8':
@@ -350,61 +351,39 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
         # 6. 아이폰(iOS) WebClip 구성 프로파일 다운로드: /install.mobileconfig
         if path == '/install.mobileconfig':
             icon_path = os.path.join(PUBLIC_DIR, 'icon-192.png')
-            icon_b64 = ""
+            icon_bytes = b""
             if os.path.exists(icon_path):
                 with open(icon_path, 'rb') as f:
-                    icon_b64 = base64.b64encode(f.read()).decode('utf-8')
-            
-            profile_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>PayloadContent</key>
-    <array>
-        <dict>
-            <key>FullScreen</key>
-            <true/>
-            <key>Icon</key>
-            <data>{icon_b64}</data>
-            <key>IsRemovable</key>
-            <true/>
-            <key>Label</key>
-            <string>오뺀</string>
-            <key>PayloadDescription</key>
-            <string>오늘부터 밴드부 홈 화면 바로가기 앱</string>
-            <key>PayloadDisplayName</key>
-            <string>오늘부터 밴드부 (오뺀)</string>
-            <key>PayloadIdentifier</key>
-            <string>com.oband.webclip</string>
-            <key>PayloadOrganization</key>
-            <string>오늘부터 밴드부</string>
-            <key>PayloadType</key>
-            <string>com.apple.webClip.managed</string>
-            <key>PayloadUUID</key>
-            <string>5c7e3f20-8025-4a52-b8d1-7c981d3f4e22</string>
-            <key>PayloadVersion</key>
-            <integer>1</integer>
-            <key>Precomposed</key>
-            <true/>
-            <key>URL</key>
-            <string>https://o-band.onrender.com/</string>
-        </dict>
-    </array>
-    <key>PayloadDescription</key>
-    <string>오늘부터 밴드부 홈 화면 바로가기 설치 프로파일</string>
-    <key>PayloadDisplayName</key>
-    <string>오늘부터 밴드부 (오뺀)</string>
-    <key>PayloadIdentifier</key>
-    <string>com.oband.profile</string>
-    <key>PayloadOrganization</key>
-    <string>오늘부터 밴드부</string>
-    <key>PayloadUUID</key>
-    <string>9a3d4f10-1823-4e31-9f5a-3c1d2e4f5a6b</string>
-    <key>PayloadVersion</key>
-    <integer>1</integer>
-</dict>
-</plist>"""
-            content_bytes = profile_xml.encode('utf-8')
+                    icon_bytes = f.read()
+
+            webclip_dict = {
+                'PayloadType': 'com.apple.webClip.managed',
+                'PayloadVersion': 1,
+                'PayloadIdentifier': 'com.oband.webclip',
+                'PayloadUUID': '5c7e3f20-8025-4a52-b8d1-7c981d3f4e22',
+                'PayloadDisplayName': '오뺀',
+                'PayloadDescription': '오늘부터 밴드부 홈 화면 바로가기',
+                'PayloadOrganization': '오늘부터 밴드부',
+                'URL': 'https://o-band.onrender.com/',
+                'Label': '오뺀',
+                'FullScreen': True,
+                'IsRemovable': True,
+                'Precomposed': True
+            }
+            if icon_bytes:
+                webclip_dict['Icon'] = icon_bytes
+
+            profile_data = {
+                'PayloadType': 'Configuration',
+                'PayloadVersion': 1,
+                'PayloadIdentifier': 'com.oband.profile',
+                'PayloadUUID': '9a3d4f10-1823-4e31-9f5a-3c1d2e4f5a6b',
+                'PayloadDisplayName': '오뺀 (오늘부터 밴드부)',
+                'PayloadDescription': '오늘부터 밴드부 홈 화면 바로가기 설치 프로파일',
+                'PayloadOrganization': '오늘부터 밴드부',
+                'PayloadContent': [webclip_dict]
+            }
+            content_bytes = plistlib.dumps(profile_data, fmt=plistlib.FMT_XML)
             self.send_response(200)
             self.send_header('Content-Type', 'application/x-apple-aspen-config; charset=utf-8')
             self.send_header('Content-Disposition', 'attachment; filename="oband.mobileconfig"')
