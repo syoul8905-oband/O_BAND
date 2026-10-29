@@ -107,19 +107,19 @@ def run_wtt():
     print(f"✅ 7. [관리자 합주 강제 취소] 예약자 본인 PIN(5566) 없이 관리자 마스터 권한으로 즉시 강제 취소 완료")
 
     # 9. 관리자 부원 정보 수정 및 삭제 검증
-    # 부원 수정 (예: 최드럼의 역할을 '악기장'으로 수정)
+    # 부원 수정 (예: 최드럼의 역할을 '운영진'으로 수정)
     cur.execute("SELECT id, name FROM members WHERE name = '최드럼'")
     drum_mem = cur.fetchone()
     if drum_mem:
-        cur.execute("UPDATE members SET role = '악기장', phone = '010-8888-9999' WHERE id = ?", (drum_mem['id'],))
+        cur.execute("UPDATE members SET role = '운영진', phone = '010-8888-9999' WHERE id = ?", (drum_mem['id'],))
         conn.commit()
         cur.execute("SELECT role, phone FROM members WHERE id = ?", (drum_mem['id'],))
         updated_drum = cur.fetchone()
-        assert updated_drum['role'] == '악기장' and updated_drum['phone'] == '010-8888-9999', "부원 정보 수정 실패"
-        print("✅ 8. [부원 명부 관리자 수정] '최드럼' 부원의 직책(악기장) 및 연락처 정상 수정 완료")
+        assert updated_drum['role'] == '운영진' and updated_drum['phone'] == '010-8888-9999', "부원 정보 수정 실패"
+        print("✅ 8. [부원 명부 관리자 수정] '최드럼' 부원의 직책(운영진) 및 연락처 정상 수정 완료")
 
     # 임시 부원 추가 후 관리자 삭제 검증
-    cur.execute("INSERT INTO members (name, part, phone, role, created_at) VALUES ('임시탈퇴부원', '기타', '', '부원', datetime('now'))")
+    cur.execute("INSERT INTO members (name, part, phone, role, created_at) VALUES ('임시탈퇴부원', '기타', '', '회원', datetime('now'))")
     temp_mem_id = cur.lastrowid
     conn.commit()
     cur.execute("DELETE FROM members WHERE id = ?", (temp_mem_id,))

@@ -95,10 +95,15 @@ def init_db():
         name TEXT NOT NULL UNIQUE,
         part TEXT NOT NULL,              -- 보컬, 일렉기타, 어쿠스틱기타, 베이스, 드럼, 건반 등
         phone TEXT,
-        role TEXT DEFAULT '부원',        -- 밴드장, 총무, 악기장, 부원
+        role TEXT DEFAULT '회원',        -- 운영자, 운영진, 회원
         created_at TEXT NOT NULL
     )
     ''')
+
+    # 기존 직책 데이터 마이그레이션 (밴드장->운영자, 총무/악기장->운영진, 부원->회원)
+    cur.execute("UPDATE members SET role = '운영자' WHERE role IN ('밴드장', '리더')")
+    cur.execute("UPDATE members SET role = '운영진' WHERE role IN ('총무', '악기장')")
+    cur.execute("UPDATE members SET role = '회원' WHERE role IN ('부원', '일반 부원')")
     
     # 5. 시스템 환경설정 테이블 (예약 오픈 룰 등)
     cur.execute('''
@@ -153,11 +158,11 @@ def init_db():
     if cur.fetchone()[0] == 0:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         samples = [
-            ('김밴드', '보컬', '010-1111-2222', '밴드장', now_str),
-            ('이기타', '일렉기타', '010-3333-4444', '악기장', now_str),
-            ('박베이스', '베이스', '010-5555-6666', '총무', now_str),
-            ('최드럼', '드럼', '010-7777-8888', '부원', now_str),
-            ('정건반', '건반', '010-9999-0000', '부원', now_str)
+            ('김밴드', '보컬', '010-1111-2222', '운영자', now_str),
+            ('이기타', '일렉기타', '010-3333-4444', '운영진', now_str),
+            ('박베이스', '베이스', '010-5555-6666', '운영진', now_str),
+            ('최드럼', '드럼', '010-7777-8888', '회원', now_str),
+            ('정건반', '건반', '010-9999-0000', '회원', now_str)
         ]
         cur.executemany('INSERT INTO members (name, part, phone, role, created_at) VALUES (?, ?, ?, ?, ?)', samples)
 
@@ -303,10 +308,9 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
                 SELECT id, name, part, phone, role, created_at
                 FROM members
                 ORDER BY CASE role 
-                    WHEN '밴드장' THEN 1 
-                    WHEN '총무' THEN 2 
-                    WHEN '악기장' THEN 3 
-                    ELSE 4 END, name ASC
+                    WHEN '운영자' THEN 1 
+                    WHEN '운영진' THEN 2 
+                    ELSE 3 END, name ASC
             ''')
             rows = [dict(row) for row in cur.fetchall()]
             conn.close()
@@ -527,7 +531,7 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             name = body.get('name', '').strip()
             part = body.get('part', '').strip()
             phone = body.get('phone', '').strip()
-            role = body.get('role', '부원').strip()
+            role = body.get('role', '회원').strip()
 
             if not name or not part:
                 self.send_json({'success': False, 'message': '이름과 담당 파트는 필수입니다.'}, 400)
@@ -601,7 +605,7 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             name = body.get('name', '').strip()
             part = body.get('part', '').strip()
             phone = body.get('phone', '').strip()
-            role = body.get('role', '부원').strip()
+            role = body.get('role', '회원').strip()
 
             conn = get_db()
             cur = conn.cursor()

@@ -665,7 +665,7 @@ function openEditMemberModal(id, name, part, phone, role) {
   document.getElementById('editMemName').value = name;
   document.getElementById('editMemPart').value = part;
   document.getElementById('editMemPhone').value = phone || '';
-  document.getElementById('editMemRole').value = role || '부원';
+  document.getElementById('editMemRole').value = role || '회원';
   openModal('editMemberModal');
 }
 
@@ -818,19 +818,25 @@ async function loadMembers() {
       '베이스': '🎸', '드럼': '🥁', '건반': '🎹'
     };
 
+    function getRoleBadge(role) {
+      if (role === '운영자') return '<span class="member-role" style="color:#f59e0b; font-weight:800;">[운영자 👑]</span>';
+      if (role === '운영진') return '<span class="member-role" style="color:#00dfd8; font-weight:700;">[운영진 ⭐]</span>';
+      return '<span class="member-role" style="color:var(--text-dim);">[회원]</span>';
+    }
+
     container.innerHTML = members.map(m => `
       <div class="member-card">
         <div class="member-avatar">${partIcons[m.part] || '🎵'}</div>
         <div class="member-details">
           <div class="member-name">
             ${escapeHtml(m.name)}
-            ${m.role && m.role !== '부원' ? `<span class="member-role">[${m.role}]</span>` : ''}
+            ${getRoleBadge(m.role || '회원')}
           </div>
           <div class="member-part">${m.part} ${m.phone ? `<span style="font-size:10px;color:var(--text-dim);">(${escapeHtml(m.phone)})</span>` : ''}</div>
         </div>
         ${isAdmin ? `
           <div class="member-card-admin-actions">
-            <button class="btn-mem-action edit" title="부원 수정" onclick="openEditMemberModal(${m.id}, '${escapeHtml(m.name)}', '${escapeHtml(m.part)}', '${escapeHtml(m.phone || '')}', '${escapeHtml(m.role || '부원')}')">✏️</button>
+            <button class="btn-mem-action edit" title="부원 수정" onclick="openEditMemberModal(${m.id}, '${escapeHtml(m.name)}', '${escapeHtml(m.part)}', '${escapeHtml(m.phone || '')}', '${escapeHtml(m.role || '회원')}')">✏️</button>
             <button class="btn-mem-action del" title="부원 삭제" onclick="deleteMember(${m.id}, '${escapeHtml(m.name)}')">🗑️</button>
           </div>
         ` : ''}
