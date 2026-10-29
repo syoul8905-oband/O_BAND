@@ -38,18 +38,37 @@ function updateAdminHeaderUI() {
   }
 }
 
-// 초기화
+// 앱 시작 즉시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
-  updateAdminHeaderUI();
-  initTimeOptions();
-  await loadBookingWindow();
-  await loadMonthData(calYear, calMonth);
-  renderCalendar();
-  renderDayTimeline(selectedDate);
-  loadNotices();
-  loadSetlists();
-  loadMembers();
+  try {
+    updateAdminHeaderUI();
+
+    // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+    refreshTimeSlotsForDate(selectedDate);
+
+    // 2. 비동기 데이터 로드 및 달력 실시간 업데이트
+    await loadBookingWindow();
+    await loadMonthData(calYear, calMonth);
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+
+    // 3. 기타 탭 데이터 백그라운드 프리로드
+    loadNotices();
+    loadSetlists();
+    loadMembers();
+  } catch (err) {
+    console.error('초기 로딩 중 오류 발생:', err);
+    // 오류가 발생해도 달력은 무조건 표출
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+  }
 });
+
+function initTimeOptions() {
+  refreshTimeSlotsForDate(selectedDate);
+}
 
 // 날짜 헬퍼
 function getTodayString() {

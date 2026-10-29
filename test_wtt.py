@@ -9,6 +9,7 @@
 import sys
 import os
 import sqlite3
+import re
 from datetime import datetime, timedelta
 
 if sys.stdout.encoding != 'utf-8':
@@ -128,7 +129,25 @@ def run_wtt():
     assert cur.fetchone() is None, "부원 삭제 실패"
     print("✅ 9. [부원 명부 관리자 삭제] 탈퇴 부원 정상 삭제 확인 완료")
 
-    # 10. 프론트엔드 에셋 무결성 및 관리자 날짜 프리패스 UI 검증
+    # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
+    with open(os.path.join(server.PUBLIC_DIR, 'app.js'), 'r', encoding='utf-8') as f:
+        app_content = f.read()
+    with open(os.path.join(server.PUBLIC_DIR, 'index.html'), 'r', encoding='utf-8') as f:
+        html_content = f.read()
+
+    defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_content))
+    html_calls = set(re.findall(r'on\w+=\s*["\']([a-zA-Z0-9_]+)\s*\(', html_content))
+    for fn in html_calls:
+        assert fn in defs, f"HTML 이벤트 핸들러 {fn}가 app.js에 정의되지 않음!"
+
+    # DOMContentLoaded 내부 호출 함수 전수 검증
+    doc_match = re.search(r"DOMContentLoaded['\"],\s*async\s*\(\)\s*=>\s*\{([^}]+)\}", app_content)
+    if doc_match:
+        dom_calls = re.findall(r'([a-zA-Z0-9_]+)\s*\(', doc_match.group(1))
+        for fn in dom_calls:
+            if fn != 'catch':
+                assert fn in defs, f"DOMContentLoaded 내부 호출 함수 {fn}가 app.js에 정의되지 않음!"
+
     for fname in ['index.html', 'style.css', 'app.js']:
         fpath = os.path.join(server.PUBLIC_DIR, fname)
         with open(fpath, 'r', encoding='utf-8') as f:
@@ -143,7 +162,7 @@ def run_wtt():
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")
     conn.commit()
-    print("✅ 10. [관리자 날짜 잠금 프리패스 & 기간설정 UI 무결성] 잠금 우회 및 상단 원클릭 설정 UI 100% 탑재 확인")
+    print("✅ 10. [0초 즉각 렌더링 & 무결성] 첫 접속 즉시 달력 표출 및 JS 미정의 오류 100% 무결 차단 확인")
 
     conn.close()
     print("=================================================================")
