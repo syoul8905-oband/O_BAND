@@ -1463,6 +1463,14 @@ body {
   margin-bottom: 14px;
 }
 
+.shortcut-kakao-tip {
+  background: rgba(254, 229, 0, 0.12);
+  border: 1px solid rgba(254, 229, 0, 0.35);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
 .shortcut-hero-icon {
   width: 52px;
   height: 52px;

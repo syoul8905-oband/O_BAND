@@ -1396,7 +1396,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function handleShortcutNavClick() {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
 
   // 1) 지원 브라우저(PWA install prompt)인 경우 즉시 프롬프트 실행
   if (deferredInstallPrompt) {
@@ -1410,48 +1412,119 @@ function handleShortcutNavClick() {
     return;
   }
 
-  // 2) PC 환경인 경우 .url 파일 즉각 다운로드
+  // 2) 카카오톡 인앱 브라우저인 경우: 외부 브라우저 탈출 우선 시도
+  if (isKakao) {
+    escapeKakaoToExternalBrowser();
+    openShortcutModal();
+    return;
+  }
+
+  // 3) PC 환경인 경우 .url 파일 즉각 다운로드
   if (!isMobile) {
     downloadDesktopShortcut();
     showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
   }
 
-  // 3) 모달 안내창 표출
+  // 4) 모달 안내창 표출
   openShortcutModal();
 }
 
 function openShortcutModal() {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isMobile = isAndroid || isIOS;
+
   const btnText = document.getElementById('btnAutoInstallText');
   const btnIcon = document.getElementById('btnAutoInstallIcon');
+  const kakaoTip = document.getElementById('shortcutKakaoTip');
 
-  if (deferredInstallPrompt) {
-    if (btnText) btnText.textContent = '✨ 홈 화면에 앱 추가하기 (원클릭)';
-    if (btnIcon) btnIcon.textContent = '📱';
-  } else if (!isMobile) {
-    if (btnText) btnText.textContent = '💾 바탕화면 바로가기 (.url) 다운로드';
-    if (btnIcon) btnIcon.textContent = '🖥️';
+  if (isKakao) {
+    if (btnText) btnText.textContent = '🚀 크롬 / 기본 브라우저로 열기';
+    if (btnIcon) btnIcon.textContent = '🌐';
+    if (kakaoTip) kakaoTip.style.display = 'block';
   } else {
-    if (btnText) btnText.textContent = '📲 스마트폰 홈 화면에 추가';
-    if (btnIcon) btnIcon.textContent = '⚡';
+    if (kakaoTip) kakaoTip.style.display = 'none';
+    if (deferredInstallPrompt) {
+      if (btnText) btnText.textContent = '✨ 홈 화면에 앱 추가하기 (원클릭)';
+      if (btnIcon) btnIcon.textContent = '📱';
+    } else if (!isMobile) {
+      if (btnText) btnText.textContent = '💾 바탕화면 바로가기 (.url) 다운로드';
+      if (btnIcon) btnIcon.textContent = '🖥️';
+    } else {
+      if (btnText) btnText.textContent = '📲 스마트폰 홈 화면에 추가';
+      if (btnIcon) btnIcon.textContent = '⚡';
+    }
   }
 
   openModal('shortcutModal');
 }
 
 function executeShortcutCreation() {
+  const userAgent = navigator.userAgent || '';
+  const isKakao = /KAKAOTALK/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isMobile = isAndroid || isIOS;
+
+  // 1. 카카오톡 인앱 브라우저: 외부 브라우저(크롬/사파리)로 탈출 실행
+  if (isKakao) {
+    showToast('🌐 크롬 / 기본 브라우저로 이동합니다...');
+    escapeKakaoToExternalBrowser();
+    return;
+  }
+
+  // 2. 모바일 브라우저(크롬/삼성인터넷 등)에서 PWA 설치 프롬프트가 대기 중인 경우
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((choiceResult) => {
       if (choiceResult.outcome === 'accepted') {
-        showToast('🎉 바탕화면에 바로가기가 추가되었습니다!');
+        showToast('🎉 홈 화면에 앱 바로가기가 추가되었습니다!');
         closeModal('shortcutModal');
       }
       deferredInstallPrompt = null;
     });
+    return;
+  }
+
+  // 3. 모바일 환경인데 프롬프트가 지원되지 않는 경우 (절대 .url 파일 다운로드 금지!)
+  if (isMobile) {
+    if (isIOS) {
+      alert('📱 아이폰에서는 사파리 하단의 [공유 📤] 버튼을 누른 후 [홈 화면에 추가 ➕]를 선택해 주세요!');
+    } else {
+      alert('📱 브라우저 우측 상단 메뉴 [⋮]을 누른 후 [홈 화면에 추가] 또는 [앱 설치]를 선택해 주세요!');
+    }
+    return;
+  }
+
+  // 4. 오직 PC 데스크톱 환경에서만 .url 파일 다운로드 실행
+  downloadDesktopShortcut();
+  showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
+}
+
+function escapeKakaoToExternalBrowser() {
+  const userAgent = navigator.userAgent || '';
+  const isAndroid = /Android/i.test(userAgent);
+  const host = window.location.host;
+  const path = window.location.pathname + window.location.search;
+  const fullUrl = window.location.href;
+
+  if (isAndroid) {
+    // 안드로이드 크롬 패키지 지정 인텐트 (갤럭시/안드로이드 카톡 탈출 표준)
+    const chromeIntent = `intent://${host}${path}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+    const genericIntent = `intent://${host}${path}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+
+    // 1차 크롬 인텐트 실행
+    window.location.href = chromeIntent;
+
+    // 반응 없을 시 대비 0.5초 후 일반 브라우저 인텐트
+    setTimeout(() => {
+      window.location.href = genericIntent;
+    }, 500);
   } else {
-    downloadDesktopShortcut();
-    showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
+    // iOS 사파리 탈출 스킴
+    window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
   }
 }
 

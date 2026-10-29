@@ -151,7 +151,7 @@ def run_wtt():
     assert 'sleepModeOverlay' in index_html_text, "절전 모드 오버레이 누락"
     assert 'wakeFromSleep' in app_js_text and 'initSleepModeTracker' in app_js_text, "절전 모드 제어 함수 누락"
     assert 'shortcutModal' in index_html_text and 'navItemShortcut' in index_html_text, "바탕화면 바로가기 UI 누락"
-    assert 'handleShortcutNavClick' in app_js_text and 'downloadDesktopShortcut' in app_js_text, "바탕화면 바로가기 함수 누락"
+    assert 'handleShortcutNavClick' in app_js_text and 'downloadDesktopShortcut' in app_js_text and 'escapeKakaoToExternalBrowser' in app_js_text, "바탕화면 바로가기 함수 누락"
     print("✅ 9. [드롭다운 & 카카오톡 예약공유 & 스마트 절전 모드 & 바로가기] 팀명 드롭다운, 스와이프, 카톡 공유, 절전 오버레이, 바탕화면 바로가기 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
