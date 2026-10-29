@@ -591,36 +591,42 @@
     </div>
   </div>
 
-  <!-- [모달 11] 크롬(Chrome) 순수 바로가기 안내 모달 -->
+  <!-- [모달 11] 크롬(Chrome) 순수 바로가기 안내 모달 (첨부 3단계 스크린샷 표출) -->
   <iframe id="iosProfileDownloadFrame" style="display:none; width:0; height:0; border:0;"></iframe>
   <div class="modal-overlay" id="iosProfileCompleteModal">
-    <div class="bottom-sheet ios-guide-sheet" style="max-height: 90vh; overflow-y: auto;">
+    <div class="bottom-sheet ios-guide-sheet" style="max-height: 92vh; overflow-y: auto;">
       <div class="sheet-header">
         <div class="sheet-title">🌐 크롬(Chrome) 바로가기 추가 방법</div>
         <button class="sheet-close" onclick="closeModal('iosProfileCompleteModal')">✕</button>
       </div>
-      <div class="modal-body" style="padding: 16px 18px 24px; text-align: center;">
-        <div style="background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.45); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
-          <div style="font-size: 15px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
-            ✅ 앱 설치(APK)가 완전히 해제되었습니다!
+      <div class="modal-body" style="padding: 14px 16px 22px; text-align: center;">
+        <!-- 1단계 스크린샷 -->
+        <div style="text-align: left; margin-bottom: 16px;">
+          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
+            1️⃣ 크롬 우측 상단 점 3개 메뉴 [ ⋮ ] 터치
           </div>
-          <div style="font-size: 12px; color: #e2e8f0; line-height: 1.55;">
-            이제 크롬에서 추가하시면 앱 설치나 보안 경고 없이, <strong>크롬 마크가 찍힌 100% 순수 바로가기</strong>로 바탕화면에 생성됩니다.
+          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+            <img src="/chrome-guide-1.jpg" alt="1단계: 점 3개 메뉴 터치" style="width: 100%; height: auto; display: block;">
           </div>
         </div>
 
-        <div class="ios-steps-container" style="margin-bottom: 14px; text-align: left;">
-          <div class="ios-step-card">
-            <div class="ios-step-num" style="background: #22c55e; color: #000;">1</div>
-            <div class="ios-step-content">
-              크롬 화면 우측 상단 <strong>점 3개 메뉴 [ ⋮ ]</strong>를 터치합니다.
-            </div>
+        <!-- 2단계 스크린샷 -->
+        <div style="text-align: left; margin-bottom: 16px;">
+          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
+            2️⃣ 메뉴에서 [설치 및 바로가기 만들기] 터치
           </div>
-          <div class="ios-step-card">
-            <div class="ios-step-num" style="background: #22c55e; color: #000;">2</div>
-            <div class="ios-step-content">
-              메뉴에서 <strong>[홈 화면에 추가]</strong> ➔ <strong>[추가]</strong>를 누르면 크롬 바로가기 생성 완료!
-            </div>
+          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+            <img src="/chrome-guide-2.jpg" alt="2단계: 설치 및 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
+          </div>
+        </div>
+
+        <!-- 3단계 스크린샷 -->
+        <div style="text-align: left; margin-bottom: 16px;">
+          <div style="font-size: 14px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
+            3️⃣ [바로가기 만들기 (Chrome에서 바로가기 열기)] 터치!
+          </div>
+          <div style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.5); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000;">
+            <img src="/chrome-guide-3.jpg" alt="3단계: 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
           </div>
         </div>
 

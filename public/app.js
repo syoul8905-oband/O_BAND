@@ -1476,35 +1476,22 @@ function executeShortcutCreation() {
   executeChromeShortcut();
 }
 
-// 1. 크롬 바로가기 (앱 설치 없이 에러코드.com처럼 순수 크롬 바로가기 생성)
+// 1. 크롬 바로가기 (첨부된 3단계 스크린샷 표출 & 카톡/삼성인터넷 시 크롬 자동 연결)
 function executeChromeShortcut() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isSamsung = /SamsungBrowser/i.test(userAgent);
-  const isAndroid = /Android/i.test(userAgent);
-  const isIOS = isAppleMobile();
 
   closeModal('shortcutModal');
 
-  // 카카오톡 또는 삼성 인터넷에서는 크롬(com.android.chrome)으로 즉시 이동
+  // 카카오톡 또는 삼성 인터넷에서는 크롬(com.android.chrome)으로 즉시 이동하여 스크린샷 안내 표출
   if (isKakao || isSamsung) {
     showToast('🌐 크롬(Chrome) 브라우저로 이동합니다...');
     escapeKakaoToExternalBrowser('chrome');
     return;
   }
 
-  if (isAndroid) {
-    openModal('iosProfileCompleteModal');
-    return;
-  }
-
-  if (isIOS) {
-    executeSafariShortcut();
-    return;
-  }
-
-  // PC 환경: 바탕화면 바로가기(.url) 즉시 다운로드
-  downloadDesktopShortcut();
+  openModal('iosProfileCompleteModal');
 }
 
 // 2. 사파리 바로가기 (첨부된 1번 스크린샷 표출)
