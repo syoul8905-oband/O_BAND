@@ -92,7 +92,7 @@ def run_wtt():
 
     # 원복
     cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
-    cur.execute("UPDATE system_settings SET setting_value = '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습' WHERE setting_key = 'quick_teams'")
+    cur.execute("UPDATE system_settings SET setting_value = '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습' WHERE setting_key = 'quick_teams'")
     cur.execute("UPDATE system_settings SET setting_value = '' WHERE setting_key = 'kakao_js_key'")
     conn.commit()
 
@@ -150,7 +150,9 @@ def run_wtt():
     assert 'shareReservationById' in app_js_text, "타임라인 카드 공유 함수 누락"
     assert 'sleepModeOverlay' in index_html_text, "절전 모드 오버레이 누락"
     assert 'wakeFromSleep' in app_js_text and 'initSleepModeTracker' in app_js_text, "절전 모드 제어 함수 누락"
-    print("✅ 9. [드롭다운 & 카카오톡 예약공유 & 스마트 절전 모드] 팀명 드롭다운, 스와이프, 카톡 공유, 절전 오버레이 100% 확인")
+    assert 'shortcutModal' in index_html_text and 'navItemShortcut' in index_html_text, "바탕화면 바로가기 UI 누락"
+    assert 'handleShortcutNavClick' in app_js_text and 'downloadDesktopShortcut' in app_js_text, "바탕화면 바로가기 함수 누락"
+    print("✅ 9. [드롭다운 & 카카오톡 예약공유 & 스마트 절전 모드 & 바로가기] 팀명 드롭다운, 스와이프, 카톡 공유, 절전 오버레이, 바탕화면 바로가기 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))
@@ -171,13 +173,15 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content and 'shortcutModal' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'sleep-mode-overlay' in content
                 assert 'timeline-top-row' in content and 'timeline-bottom-row' in content and 'timeline-actions' in content
+                assert 'shortcut-sheet' in content and 'btn-shortcut-primary' in content
             elif fname == 'app.js':
                 assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'wakeFromSleep' in content
                 assert 'timeline-top-row' in content and 'timeline-bottom-row' in content
+                assert 'handleShortcutNavClick' in content and 'downloadDesktopShortcut' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 데이터 보존 & 테스트 데이터만 정밀 정리)
     cur.execute("DELETE FROM reservations WHERE id IN (?, ?)", (res_id, force_res_id))

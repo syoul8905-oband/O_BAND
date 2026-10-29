@@ -6,7 +6,11 @@
   <title>오늘부터 밴드부 (오뺀) - 모바일 전용</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="오뺀">
   <meta name="theme-color" content="#1a1d27">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -139,6 +143,10 @@
       <div class="nav-item" data-tab="tab-setlist" onclick="switchTab('tab-setlist', this)">
         <div class="nav-icon">🎵</div>
         <div>합주곡</div>
+      </div>
+      <div class="nav-item" id="navItemShortcut" onclick="handleShortcutNavClick()">
+        <div class="nav-icon">📲</div>
+        <div>바탕화면</div>
       </div>
     </nav>
   </div>
@@ -456,6 +464,63 @@
           <span style="font-size: 17px;">💬</span> 카카오톡으로 공유하기
         </button>
         <button type="button" class="btn-close-gray" onclick="closeModal('bookingSuccessModal')">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [모달 8] 바탕화면 바로가기 만들기 모달 -->
+  <div class="modal-overlay" id="shortcutModal">
+    <div class="bottom-sheet shortcut-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">📲 바탕화면 바로가기 만들기</div>
+        <button class="sheet-close" onclick="closeModal('shortcutModal')">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px 24px;">
+        <div class="shortcut-hero-card">
+          <img src="/icon.svg" alt="오뺀" class="shortcut-hero-icon">
+          <div class="shortcut-hero-info">
+            <div class="shortcut-hero-title">오늘부터 밴드부 (오뺀)</div>
+            <div class="shortcut-hero-sub">스마트폰 홈 화면이나 PC 바탕화면에 추가하면 1초 만에 전용 앱처럼 바로 접속됩니다.</div>
+          </div>
+        </div>
+
+        <!-- 1. 원클릭 바로가기 실행 버튼 (PWA / 데스크톱 다운로드) -->
+        <div style="margin: 14px 0 16px;">
+          <button type="button" class="btn-shortcut-primary" id="btnAutoInstall" onclick="executeShortcutCreation()">
+            <span id="btnAutoInstallIcon">⚡</span>
+            <span id="btnAutoInstallText">바탕화면 바로가기 만들기 (다운로드)</span>
+          </button>
+        </div>
+
+        <!-- 2. 기기별 쉬운 안내 가이드 -->
+        <div class="shortcut-guide-box">
+          <div class="shortcut-guide-title">💡 기기별 바로가기 생성 방법</div>
+          
+          <div class="shortcut-step-item">
+            <div class="shortcut-step-badge">🖥️ PC (Windows)</div>
+            <div class="shortcut-step-desc">
+              위 버튼을 누르면 <strong>'오늘부터밴드부_오뺀.url'</strong> 파일이 즉시 다운로드됩니다. 다운로드된 파일을 바탕화면으로 끌어다 놓으시면 언제든 더블클릭으로 즉시 실행됩니다!
+            </div>
+          </div>
+
+          <div class="shortcut-step-item">
+            <div class="shortcut-step-badge">🤖 갤럭시 / 안드로이드 (크롬/삼성인터넷)</div>
+            <div class="shortcut-step-desc">
+              브라우저 우측 상단 더보기 <strong>[⋮]</strong> ➔ <strong>[홈 화면에 추가]</strong> 또는 <strong>[앱 설치]</strong>를 터치하시면 스마트폰 바탕화면에 전용 앱 아이콘이 생성됩니다.
+            </div>
+          </div>
+
+          <div class="shortcut-step-item">
+            <div class="shortcut-step-badge">🍎 아이폰 (Safari)</div>
+            <div class="shortcut-step-desc">
+              사파리 브라우저 하단 중앙의 <strong>[공유 📤]</strong> 아이콘 ➔ 메뉴에서 <strong>[홈 화면에 추가 ➕]</strong> ➔ 우측 상단 <strong>[추가]</strong>를 터치하시면 끝!
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-shortcut-secondary" onclick="closeModal('shortcutModal')">
           닫기
         </button>
       </div>

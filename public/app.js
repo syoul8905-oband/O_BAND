@@ -1382,3 +1382,88 @@ function initSleepModeTracker() {
   });
   resetSleepTimer();
 }
+
+// 16. 바탕화면 바로가기 / 홈 화면에 앱 추가 시스템
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('btnAutoInstallText');
+  if (btn) btn.textContent = '✨ 홈 화면 / 바탕화면에 추가하기';
+  const icon = document.getElementById('btnAutoInstallIcon');
+  if (icon) icon.textContent = '📱';
+});
+
+function handleShortcutNavClick() {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // 1) 지원 브라우저(PWA install prompt)인 경우 즉시 프롬프트 실행
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        showToast('🎉 바탕화면에 바로가기가 추가되었습니다!');
+      }
+      deferredInstallPrompt = null;
+    });
+    return;
+  }
+
+  // 2) PC 환경인 경우 .url 파일 즉각 다운로드
+  if (!isMobile) {
+    downloadDesktopShortcut();
+    showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
+  }
+
+  // 3) 모달 안내창 표출
+  openShortcutModal();
+}
+
+function openShortcutModal() {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const btnText = document.getElementById('btnAutoInstallText');
+  const btnIcon = document.getElementById('btnAutoInstallIcon');
+
+  if (deferredInstallPrompt) {
+    if (btnText) btnText.textContent = '✨ 홈 화면에 앱 추가하기 (원클릭)';
+    if (btnIcon) btnIcon.textContent = '📱';
+  } else if (!isMobile) {
+    if (btnText) btnText.textContent = '💾 바탕화면 바로가기 (.url) 다운로드';
+    if (btnIcon) btnIcon.textContent = '🖥️';
+  } else {
+    if (btnText) btnText.textContent = '📲 스마트폰 홈 화면에 추가';
+    if (btnIcon) btnIcon.textContent = '⚡';
+  }
+
+  openModal('shortcutModal');
+}
+
+function executeShortcutCreation() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        showToast('🎉 바탕화면에 바로가기가 추가되었습니다!');
+        closeModal('shortcutModal');
+      }
+      deferredInstallPrompt = null;
+    });
+  } else {
+    downloadDesktopShortcut();
+    showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
+  }
+}
+
+function downloadDesktopShortcut() {
+  const targetUrl = window.location.origin || 'https://o-band.onrender.com';
+  const fileContent = `[InternetShortcut]\r\nURL=${targetUrl}/\r\nIconIndex=0\r\nHotKey=0\r\nIDList=\r\n[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,11\r\n`;
+  const blob = new Blob([fileContent], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '오늘부터밴드부_오뺀.url';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}

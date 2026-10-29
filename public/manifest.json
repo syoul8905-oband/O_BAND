@@ -1,0 +1,18 @@
+{
+  "name": "오늘부터 밴드부 - 오뺀",
+  "short_name": "오뺀",
+  "description": "동호회 합주실 스마트 예약 & 스케줄 관리 시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f111a",
+  "theme_color": "#7928ca",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

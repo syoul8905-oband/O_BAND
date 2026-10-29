@@ -140,7 +140,7 @@ def init_db():
         ('open_weeks', '2', '일요일 기준 예약 오픈 주차 수 (달력상 2줄)', ?),
         ('reset_day', '0', '리셋 기준 요일 (0: 일요일, 1: 월요일)', ?),
         ('admin_pin', '9999', '관리자 설정 변경 PIN', ?),
-        ('quick_teams', '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습', '팀명 빠른 선택 메뉴 목록', ?),
+        ('quick_teams', '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습', '팀명 빠른 선택 메뉴 목록', ?),
         ('kakao_js_key', '', '카카오 JavaScript SDK 키', ?)
     ''', (now_str, now_str, now_str, now_str, now_str))
     
@@ -198,7 +198,7 @@ def get_booking_window():
 
     open_weeks = int(settings.get('open_weeks', 2))
     reset_day = int(settings.get('reset_day', 0)) # 0: 일요일
-    quick_teams = settings.get('quick_teams', '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습')
+    quick_teams = settings.get('quick_teams', '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습')
     kakao_js_key = settings.get('kakao_js_key', '')
     
     today = datetime.now().date()
