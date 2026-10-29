@@ -33,13 +33,31 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PUBLIC_DIR, exist_ok=True)
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
+def backup_db_snapshot():
+    """데이터 유실 방지를 위한 물리 스냅샷 백업 (Zero Data-Loss)"""
+    try:
+        backup_dir = os.path.join(DATA_DIR, "backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_file = os.path.join(backup_dir, f"band_club_backup_{datetime.now().strftime('%Y%m%d')}.db")
+        conn = get_db()
+        backup_conn = sqlite3.connect(backup_file)
+        conn.backup(backup_conn)
+        backup_conn.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ 백업 생성 중 경고: {e}")
 
 def init_db():
     conn = get_db()
     cur = conn.cursor()
+    backup_db_snapshot()
     
     # 1. 합주실 예약 테이블
     cur.execute('''

@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     updateAdminHeaderUI();
     initCalendarSwipe();
+    initSleepModeTracker();
 
     // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
     renderCalendar();
@@ -1250,15 +1251,11 @@ function shareReservationKakao(info) {
   if (window.Kakao && Kakao.isInitialized()) {
     try {
       Kakao.Share.sendDefault({
-        objectType: 'feed',
-        content: {
-          title: `🎸 [오뺀] 합주실 예약 안내`,
-          description: `📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실`,
-          imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-          link: {
-            mobileWebUrl: shareUrl,
-            webUrl: shareUrl
-          }
+        objectType: 'text',
+        text: `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`,
+        link: {
+          mobileWebUrl: shareUrl,
+          webUrl: shareUrl
         },
         buttons: [
           {
@@ -1335,4 +1332,46 @@ function showToast(msg) {
   toastTimer = setTimeout(() => {
     el.classList.remove('show');
   }, 3000);
+}
+
+// 15. 스마트 절전 모드 (10분 미조작 시 서버 트래픽 및 배터리 절약)
+const SLEEP_TIMEOUT_MS = 10 * 60 * 1000; // 10분
+let sleepTimer = null;
+let isSleeping = false;
+
+function resetSleepTimer() {
+  if (isSleeping) return;
+  if (sleepTimer) clearTimeout(sleepTimer);
+  sleepTimer = setTimeout(enterSleepMode, SLEEP_TIMEOUT_MS);
+}
+
+function enterSleepMode() {
+  isSleeping = true;
+  const overlay = document.getElementById('sleepModeOverlay');
+  if (overlay) overlay.classList.add('active');
+  console.log('🌙 오뺀 절전 모드 가동 (트래픽 차단)');
+}
+
+async function wakeFromSleep() {
+  const overlay = document.getElementById('sleepModeOverlay');
+  if (overlay) overlay.classList.remove('active');
+  isSleeping = false;
+  resetSleepTimer();
+
+  // 최신 데이터 갱신
+  try {
+    await loadMonthData(calYear, calMonth);
+    renderCalendar();
+    renderDayTimeline(selectedDate);
+    showToast('⚡ 절전 모드가 해제되었습니다.');
+  } catch (e) {
+    console.warn('Wake update failed:', e);
+  }
+}
+
+function initSleepModeTracker() {
+  ['touchstart', 'click', 'mousemove', 'keydown', 'scroll'].forEach(evt => {
+    window.addEventListener(evt, resetSleepTimer, { passive: true });
+  });
+  resetSleepTimer();
 }

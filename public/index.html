@@ -465,6 +465,20 @@
   <!-- 토스트 알림 메시지 (클립보드 복사 등) -->
   <div id="toastAlert" class="toast-alert"></div>
 
+  <!-- [절전 모드] 서버 트래픽 & 배터리 절약 오버레이 -->
+  <div id="sleepModeOverlay" class="sleep-mode-overlay" onclick="wakeFromSleep()">
+    <div class="sleep-mode-card">
+      <div style="font-size: 40px; margin-bottom: 12px;">🌙</div>
+      <div style="font-size: 17px; font-weight: 800; color: var(--accent-cyan); margin-bottom: 8px;">절전 모드 작동 중</div>
+      <div style="font-size: 13px; color: var(--text-sub); line-height: 1.6; margin-bottom: 16px;">
+        10분 동안 조작이 없어 서버 트래픽과<br>스마트폰 배터리를 절약 중입니다.
+      </div>
+      <button type="button" class="btn-wake" onclick="wakeFromSleep()">
+        ⚡ 화면을 터치하여 계속하기
+      </button>
+    </div>
+  </div>
+
   <!-- 카카오톡 공식 공유 JavaScript SDK -->
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js"></script>
   <script src="app.js"></script>

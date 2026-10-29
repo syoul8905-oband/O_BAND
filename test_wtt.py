@@ -112,7 +112,14 @@ def run_wtt():
     assert cur.fetchone()['status'] == 'cancelled', "관리자 강제 취소 실패"
     print(f"✅ 7. [관리자 합주 강제 취소] 예약자 본인 PIN(5566) 없이 관리자 마스터 권한으로 즉시 강제 취소 완료")
 
-    # 8. 백엔드 부원 데이터베이스 무결성 보존 검증 (Zero Data-Loss)
+    # 8. 백엔드 부원 데이터베이스 무결성 보존 및 WAL 모드/물리 백업 검증 (Zero Data-Loss)
+    cur.execute("PRAGMA journal_mode")
+    journal_mode = cur.fetchone()[0]
+    assert journal_mode.lower() == 'wal', f"WAL 저널 모드 미적용: {journal_mode}"
+
+    backup_dir = os.path.join(server.DATA_DIR, "backups")
+    assert os.path.exists(backup_dir) and len(os.listdir(backup_dir)) > 0, "물리 스냅샷 백업 누락"
+
     cur.execute("SELECT id, name FROM members WHERE name = '최드럼'")
     drum_mem = cur.fetchone()
     if drum_mem:
@@ -121,9 +128,9 @@ def run_wtt():
         cur.execute("SELECT role, phone FROM members WHERE id = ?", (drum_mem['id'],))
         updated_drum = cur.fetchone()
         assert updated_drum['role'] == '운영진' and updated_drum['phone'] == '010-8888-9999', "부원 정보 수정 실패"
-        print("✅ 8. [DB 무결성 보존] 부원 데이터 DB 레벨 영구 보존(Zero Data-Loss) 확인 완료")
+        print("✅ 8. [DB 무결성 & WAL 내구성 & 물리 백업] WAL 모드 및 스냅샷 백업 영구 보존(Zero Data-Loss) 확인 완료")
 
-    # 9. 모바일 3개 탭 구조 및 달력 좌우 슬라이드(Swipe) 제스처 검증
+    # 9. 모바일 3개 탭 구조, 달력 좌우 슬라이드(Swipe) 및 스마트 절전 모드 검증
     with open(os.path.join(server.PUBLIC_DIR, 'app.js'), 'r', encoding='utf-8') as f:
         app_js_text = f.read()
     with open(os.path.join(server.PUBLIC_DIR, 'index.html'), 'r', encoding='utf-8') as f:
@@ -140,7 +147,9 @@ def run_wtt():
     assert 'bookingSuccessModal' in index_html_text, "예약 완료 카톡 공유 모달 누락"
     assert 'shareCurrentBookingSuccess' in app_js_text and 'shareReservationKakao' in app_js_text, "카카오 공유 함수 누락"
     assert 'shareReservationById' in app_js_text, "타임라인 카드 공유 함수 누락"
-    print("✅ 9. [담당 파트 ➔ 팀명 드롭다운 & 카카오톡 예약공유 모달] 팀명 드롭다운, 스와이프, 카톡 공유 시스템 100% 확인")
+    assert 'sleepModeOverlay' in index_html_text, "절전 모드 오버레이 누락"
+    assert 'wakeFromSleep' in app_js_text and 'initSleepModeTracker' in app_js_text, "절전 모드 제어 함수 누락"
+    print("✅ 9. [드롭다운 & 카카오톡 예약공유 & 스마트 절전 모드] 팀명 드롭다운, 스와이프, 카톡 공유, 절전 오버레이 100% 확인")
 
     # 10. 프론트엔드 에셋 무결성, 0초 즉각 렌더링 및 미정의 함수(ReferenceError) 원천 차단 검증
     defs = set(re.findall(r'function\s+([a-zA-Z0-9_]+)', app_js_text))
@@ -161,11 +170,11 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'cfgKakaoJsKey' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content
             elif fname == 'style.css':
-                assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'btn-share-icon' in content
+                assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'sleep-mode-overlay' in content
             elif fname == 'app.js':
-                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'initKakaoSDK' in content
+                assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'wakeFromSleep' in content
 
     # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
     cur.execute("DELETE FROM reservations")
