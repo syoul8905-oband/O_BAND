@@ -92,6 +92,7 @@ def run_wtt():
 
     # 원복
     cur.execute("UPDATE system_settings SET setting_value = '2' WHERE setting_key = 'open_weeks'")
+    cur.execute("UPDATE system_settings SET setting_value = '전체합주, 정기 1팀, 공연 2팀, 어쿠스틱 유닛, 개인연습' WHERE setting_key = 'quick_teams'")
     cur.execute("UPDATE system_settings SET setting_value = '' WHERE setting_key = 'kakao_js_key'")
     conn.commit()
 
@@ -173,11 +174,13 @@ def run_wtt():
                 assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'sleep-mode-overlay' in content
+                assert 'timeline-top-row' in content and 'timeline-bottom-row' in content and 'timeline-actions' in content
             elif fname == 'app.js':
                 assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'wakeFromSleep' in content
+                assert 'timeline-top-row' in content and 'timeline-bottom-row' in content
 
-    # 테스트 후 예약 데이터 정리 (실제 운영 시 깨끗한 DB 보장)
-    cur.execute("DELETE FROM reservations")
+    # 테스트 후 예약 데이터 정리 (실제 운영 데이터 보존 & 테스트 데이터만 정밀 정리)
+    cur.execute("DELETE FROM reservations WHERE id IN (?, ?)", (res_id, force_res_id))
     conn.commit()
     print("✅ 10. [0초 즉각 렌더링 & 무결성] 첫 접속 즉시 달력 표출 및 JS 미정의 오류 100% 무결 차단 확인")
 

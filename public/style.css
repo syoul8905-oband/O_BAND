@@ -487,18 +487,91 @@ body {
 .timeline-card-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .timeline-item {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--accent-purple);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.timeline-item:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.15);
+}
+
+.timeline-top-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+}
+
+.timeline-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.timeline-clock-icon {
+  font-size: 14px;
+}
+
+.timeline-time-text {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.timeline-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.timeline-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.timeline-user-icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.timeline-user-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .timeline-info {
@@ -514,17 +587,24 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .timeline-team {
   font-size: 13px;
   font-weight: 700;
   color: #e2e8f0;
+  white-space: nowrap;
 }
 
 .timeline-sub {
   font-size: 11px;
   color: var(--text-sub);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  word-break: break-all;
 }
 
 .badge-part {
@@ -534,26 +614,36 @@ body {
   background: rgba(255, 87, 34, 0.2);
   color: #ff8a65;
   border: 1px solid rgba(255, 87, 34, 0.3);
+  white-space: nowrap;
 }
 
 .badge-team {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
   background: rgba(121, 40, 202, 0.2);
   color: #c084fc;
-  border: 1px solid rgba(192, 132, 252, 0.3);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-cancel-res {
   background: rgba(239, 68, 68, 0.12);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.25);
-  padding: 6px 10px;
+  padding: 6px 11px;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 /* 퀵 추천 태그 칩 */
@@ -1112,12 +1202,18 @@ body {
   background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
   color: white;
   border: none;
-  padding: 6px 12px;
+  padding: 6px 11px;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .btn-force-cancel:active {
@@ -1166,7 +1262,7 @@ body {
   background: rgba(254, 229, 0, 0.15);
   color: #facc15;
   border: 1px solid rgba(254, 229, 0, 0.35);
-  padding: 6px 10px;
+  padding: 6px 11px;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 700;
@@ -1174,6 +1270,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 

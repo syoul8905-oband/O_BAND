@@ -379,30 +379,34 @@ function renderDayTimeline(dateStr) {
 
   listEl.innerHTML = dayRes.map(r => `
     <div class="timeline-item">
-      <div class="timeline-info">
-        <div class="timeline-time">
-          <span>⏰ ${r.start_time} ~ ${r.end_time}</span>
-          <span class="badge-team">${escapeHtml(r.band_team || '전체합주')}</span>
+      <div class="timeline-top-row">
+        <div class="timeline-time-badge">
+          <span class="timeline-clock-icon">⏰</span>
+          <span class="timeline-time-text">${r.start_time} ~ ${r.end_time}</span>
         </div>
-        <div class="timeline-team">
-          👤 ${escapeHtml(r.member_name)} 님 예약
+        <span class="badge-team">${escapeHtml(r.band_team || '전체합주')}</span>
+      </div>
+      <div class="timeline-bottom-row">
+        <div class="timeline-member">
+          <span class="timeline-user-icon">👤</span>
+          <span class="timeline-user-name">${escapeHtml(r.member_name)} 님 예약</span>
         </div>
-        ${r.purpose ? `<div class="timeline-sub">💡 ${escapeHtml(r.purpose)}</div>` : ''}
-      </div>
-      <div style="display:flex; gap:6px; align-items:center;">
-        <button type="button" class="btn-share-icon" onclick="shareReservationById(${r.id})">
-          💬 공유
-        </button>
-        ${isAdmin ? `
-          <button class="btn-force-cancel" onclick="adminForceCancel(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
-            👑 강제취소
+        <div class="timeline-actions">
+          <button type="button" class="btn-share-icon" onclick="shareReservationById(${r.id})">
+            💬 공유
           </button>
-        ` : `
-          <button class="btn-cancel-res" onclick="openCancelModal(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
-            취소
-          </button>
-        `}
+          ${isAdmin ? `
+            <button class="btn-force-cancel" onclick="adminForceCancel(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
+              👑 강제취소
+            </button>
+          ` : `
+            <button class="btn-cancel-res" onclick="openCancelModal(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
+              취소
+            </button>
+          `}
+        </div>
       </div>
+      ${r.purpose ? `<div class="timeline-sub">💡 ${escapeHtml(r.purpose)}</div>` : ''}
     </div>
   `).join('');
 }
@@ -1218,7 +1222,7 @@ function shareCurrentBookingSuccess() {
 }
 
 function shareReservationById(id) {
-  const r = monthReservations.find(item => item.id === id);
+  const r = monthReservations.find(item => Number(item.id) === Number(id));
   if (r) {
     shareReservationKakao({
       res_date: r.res_date,
