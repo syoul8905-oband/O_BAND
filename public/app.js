@@ -1410,16 +1410,28 @@ function handleShortcutNavClick() {
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const isMobile = isAndroid || isIOS;
+  const isStandalone = ('standalone' in window.navigator) && window.navigator.standalone;
 
-  // 1) 카카오톡 인앱 브라우저: 외부 브라우저(크롬)로 즉시 화면 전환하여 바로가기 생성 유도
+  // 0) 이미 아이폰/안드로이드 홈 화면 앱으로 실행 중인 경우
+  if (isStandalone) {
+    showToast('🎉 이미 스마트폰 홈 화면 앱으로 실행 중입니다!');
+    return;
+  }
+
+  // 1) 카카오톡 인앱 브라우저: 외부 브라우저(크롬 또는 사파리)로 즉시 전환
   if (isKakao) {
-    showToast('🚀 크롬/기본 브라우저로 이동하여 홈 화면에 추가합니다...');
+    showToast(isIOS ? '🌐 사파리 브라우저로 이동합니다...' : '🚀 크롬 브라우저로 이동합니다...');
     escapeKakaoToExternalBrowser();
     return;
   }
 
-  // 2) 크롬/삼성인터넷 등 PWA 지원 브라우저: 네이티브 '홈 화면에 추가' 다이얼로그 즉시 실행!
+  // 2) 아이폰 (iOS Safari): 애플 보안 정책에 맞춰 3초 직관적 가이드 바텀시트 즉시 호출
+  if (isIOS) {
+    openModal('iosInstallGuideModal');
+    return;
+  }
+
+  // 3) 크롬/삼성인터넷 등 PWA 지원 브라우저: 네이티브 '홈 화면에 추가' 다이얼로그 즉시 실행!
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((choiceResult) => {
@@ -1431,13 +1443,13 @@ function handleShortcutNavClick() {
     return;
   }
 
-  // 3) 모바일 브라우저(사파리 또는 수동 추가 환경)
-  if (isMobile) {
+  // 4) 모바일 브라우저(안드로이드 수동 추가 환경)
+  if (isAndroid) {
     openShortcutModal();
     return;
   }
 
-  // 4) PC 환경인 경우 .url 파일 즉각 다운로드
+  // 5) PC 환경인 경우 .url 파일 즉각 다운로드
   downloadDesktopShortcut();
   showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
 }
@@ -1504,7 +1516,8 @@ function executeShortcutCreation() {
   // 3. 모바일 환경인데 프롬프트가 지원되지 않는 경우 (절대 .url 파일 다운로드 금지!)
   if (isMobile) {
     if (isIOS) {
-      alert('📱 아이폰에서는 사파리 하단의 [공유 📤] 버튼을 누른 후 [홈 화면에 추가 ➕]를 선택해 주세요!');
+      closeModal('shortcutModal');
+      openModal('iosInstallGuideModal');
     } else {
       alert('📱 브라우저 우측 상단 메뉴 [⋮]을 누른 후 [홈 화면에 추가] 또는 [앱 설치]를 선택해 주세요!');
     }

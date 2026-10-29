@@ -11,6 +11,8 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <link rel="stylesheet" href="style.css">
@@ -542,6 +544,54 @@
 
         <button type="button" class="btn-shortcut-secondary" onclick="closeModal('shortcutModal')">
           닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [모달 9] 아이폰(iOS) 전용 홈 화면 추가 안내 모달 -->
+  <div class="modal-overlay" id="iosInstallGuideModal">
+    <div class="bottom-sheet ios-guide-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🍎 아이폰 홈 화면에 추가하기</div>
+        <button class="sheet-close" onclick="closeModal('iosInstallGuideModal')">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px 24px; text-align: center;">
+        <div class="ios-guide-badge">애플(iOS) 공식 설치 안내</div>
+        <div class="ios-guide-heading">사파리에서 3초 만에 홈 화면에 추가하기</div>
+        <div class="ios-guide-sub">
+          애플(iOS) 보안 정책으로 인해 웹사이트의 자동 설치가 제한되어 있습니다.<br>
+          사파리 브라우저의 공유 기능을 통해 바로 추가하실 수 있습니다.
+        </div>
+
+        <div class="ios-steps-container">
+          <div class="ios-step-card">
+            <div class="ios-step-num">1</div>
+            <div class="ios-step-content">
+              사파리 화면 맨 아래 <strong>[공유 <span style="font-size:16px;">⎋</span> / 📤]</strong> 아이콘 터치
+            </div>
+          </div>
+          <div class="ios-step-card">
+            <div class="ios-step-num">2</div>
+            <div class="ios-step-content">
+              올라오는 메뉴 목록에서 <strong>[홈 화면에 추가 <span style="font-size:15px;">➕</span>]</strong> 선택
+            </div>
+          </div>
+          <div class="ios-step-card">
+            <div class="ios-step-num">3</div>
+            <div class="ios-step-content">
+              우측 상단의 <strong>[추가]</strong> 버튼을 누르면 바탕화면에 앱 아이콘 생성 완료!
+            </div>
+          </div>
+        </div>
+
+        <div class="ios-pointer-box">
+          <div class="ios-pointer-arrow">👇</div>
+          <div class="ios-pointer-text">화면 맨 아래 사파리 툴바의 <strong>[공유]</strong> 버튼을 눌러주세요</div>
+        </div>
+
+        <button type="button" class="btn-shortcut-secondary" onclick="closeModal('iosInstallGuideModal')">
+          확인했습니다
         </button>
       </div>
     </div>

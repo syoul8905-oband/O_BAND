@@ -173,11 +173,11 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content and 'shortcutModal' in content
+                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content and 'shortcutModal' in content and 'iosInstallGuideModal' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'sleep-mode-overlay' in content
                 assert 'timeline-top-row' in content and 'timeline-bottom-row' in content and 'timeline-actions' in content
-                assert 'shortcut-sheet' in content and 'btn-shortcut-primary' in content
+                assert 'shortcut-sheet' in content and 'btn-shortcut-primary' in content and 'ios-guide-sheet' in content
             elif fname == 'app.js':
                 assert 'adminForceCancel' in content and 'refreshTimeSlotsForDate' in content and 'shareReservationKakao' in content and 'wakeFromSleep' in content
                 assert 'timeline-top-row' in content and 'timeline-bottom-row' in content
