@@ -1386,11 +1386,21 @@ function initSleepModeTracker() {
 // 16. 바탕화면 바로가기 / 홈 화면에 앱 추가 시스템
 let deferredInstallPrompt = null;
 
+// PWA Service Worker 등록
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.warn('SW:', err);
+    });
+  });
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
+  console.log('✨ PWA 홈 화면 추가 프롬프트 준비 완료');
   const btn = document.getElementById('btnAutoInstallText');
-  if (btn) btn.textContent = '✨ 홈 화면 / 바탕화면에 추가하기';
+  if (btn) btn.textContent = '✨ 홈 화면에 바로가기 추가하기';
   const icon = document.getElementById('btnAutoInstallIcon');
   if (icon) icon.textContent = '📱';
 });
@@ -1398,9 +1408,18 @@ window.addEventListener('beforeinstallprompt', (e) => {
 function handleShortcutNavClick() {
   const userAgent = navigator.userAgent || '';
   const isKakao = /KAKAOTALK/i.test(userAgent);
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isMobile = isAndroid || isIOS;
 
-  // 1) 지원 브라우저(PWA install prompt)인 경우 즉시 프롬프트 실행
+  // 1) 카카오톡 인앱 브라우저: 외부 브라우저(크롬)로 즉시 화면 전환하여 바로가기 생성 유도
+  if (isKakao) {
+    showToast('🚀 크롬/기본 브라우저로 이동하여 홈 화면에 추가합니다...');
+    escapeKakaoToExternalBrowser();
+    return;
+  }
+
+  // 2) 크롬/삼성인터넷 등 PWA 지원 브라우저: 네이티브 '홈 화면에 추가' 다이얼로그 즉시 실행!
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((choiceResult) => {
@@ -1412,21 +1431,15 @@ function handleShortcutNavClick() {
     return;
   }
 
-  // 2) 카카오톡 인앱 브라우저인 경우: 외부 브라우저 탈출 우선 시도
-  if (isKakao) {
-    escapeKakaoToExternalBrowser();
+  // 3) 모바일 브라우저(사파리 또는 수동 추가 환경)
+  if (isMobile) {
     openShortcutModal();
     return;
   }
 
-  // 3) PC 환경인 경우 .url 파일 즉각 다운로드
-  if (!isMobile) {
-    downloadDesktopShortcut();
-    showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
-  }
-
-  // 4) 모달 안내창 표출
-  openShortcutModal();
+  // 4) PC 환경인 경우 .url 파일 즉각 다운로드
+  downloadDesktopShortcut();
+  showToast('📥 바탕화면 바로가기 파일이 다운로드되었습니다!');
 }
 
 function openShortcutModal() {
