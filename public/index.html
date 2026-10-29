@@ -4,38 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>오늘부터 밴드부 (오뺀) - 모바일 전용</title>
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="오뺀">
   <meta name="theme-color" content="#1a1d27">
-  <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <link rel="stylesheet" href="style.css">
-  <!-- PWA 설치 프롬프트 조기 캡처 & 카카오톡 인앱 브라우저 즉시 자동 탈출 -->
+  <!-- 카카오톡 인앱 브라우저 감지 시 외부 브라우저(크롬/사파리)로 즉시 자동 탈출 -->
   <script>
-    window.deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault();
-      window.deferredInstallPrompt = e;
-      if (window.location.search.indexOf('action=chrome_shortcut') !== -1) {
-        try { navigator.sendBeacon('/api/shortcut-mode?mode=chrome'); } catch(err) {}
-        setTimeout(function() {
-          if (window.deferredInstallPrompt) {
-            window.deferredInstallPrompt.prompt().catch(function() {});
-          }
-        }, 400);
-      } else if (window.location.search.indexOf('action=install_app') !== -1) {
-        try { navigator.sendBeacon('/api/shortcut-mode?mode=app'); } catch(err) {}
-        setTimeout(function() {
-          if (window.deferredInstallPrompt) {
-            window.deferredInstallPrompt.prompt().catch(function() {});
-          }
-        }, 400);
-      }
-    });
     (function() {
       var ua = navigator.userAgent || '';
       var isApple = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
@@ -522,11 +498,11 @@
     </div>
   </div>
 
-  <!-- [모달 8] 바탕화면 바로가기 선택 모달 (1. 전용 앱 설치 / 2. 크롬 바로가기 / 3. 사파리 바로가기) -->
+  <!-- [모달 8] 바탕화면 바로가기 선택 모달 (순수 크롬 바로가기 / 사파리 바로가기) -->
   <div class="modal-overlay" id="shortcutModal">
     <div class="bottom-sheet shortcut-sheet">
       <div class="sheet-header">
-        <div class="sheet-title">📲 바탕화면 바로가기 만들기</div>
+        <div class="sheet-title">📲 바탕화면 바로가기 추가</div>
         <button class="sheet-close" onclick="closeModal('shortcutModal')">✕</button>
       </div>
       <div class="modal-body" style="padding: 16px 20px 24px;">
@@ -534,43 +510,33 @@
           <img src="/icon.svg" alt="오뺀" class="shortcut-hero-icon">
           <div class="shortcut-hero-info">
             <div class="shortcut-hero-title">오늘부터 밴드부 (오뺀)</div>
-            <div class="shortcut-hero-sub">원하시는 바탕화면 추가 방식을 선택해 주세요.</div>
+            <div class="shortcut-hero-sub">앱 설치 없이, 크롬·사파리 브라우저 바로가기로 바탕화면에 깔끔하게 등록됩니다.</div>
           </div>
         </div>
 
-        <!-- 카카오톡 인앱 브라우저 특별 알림 (카카오톡 감지 시 표출) -->
+        <!-- 카카오톡 인앱 브라우저 특별 알림 -->
         <div class="shortcut-kakao-tip" id="shortcutKakaoTip" style="display: none; margin-top: 10px;">
           <div style="font-size: 13px; font-weight: 800; color: #facc15; margin-bottom: 4px;">
             💬 카카오톡 인앱 브라우저 감지됨
           </div>
           <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">
-            아래 버튼을 누르시면 전용 브라우저로 자동 연결되어 즉시 진행됩니다!
+            아래 버튼을 누르시면 크롬/사파리로 자동 이동합니다!
           </div>
         </div>
 
-        <!-- 3대 핵심 선택창: 1. 전용 앱 설치 / 2. 크롬 바로가기 / 3. 사파리 바로가기 -->
+        <!-- 순수 바로가기 선택창: 1. 크롬 바로가기 / 2. 사파리 바로가기 -->
         <div class="shortcut-choice-container" style="display: flex; flex-direction: column; gap: 12px; margin: 16px 0 14px;">
-          <!-- 1. 전용 앱 설치 -->
-          <button type="button" class="btn-shortcut-option-app" id="btnAutoInstall" onclick="executeShortcutCreation()">
-            <span style="font-size: 26px;" id="btnAutoInstallIcon">📲</span>
+          <!-- 1. 크롬 바로가기 -->
+          <button type="button" class="btn-shortcut-option-chrome" id="btnAutoInstall" onclick="executeChromeShortcut()">
+            <span style="font-size: 26px;" id="btnAutoInstallIcon">🌐</span>
             <div style="flex: 1; text-align: left;">
-              <div style="font-size: 16px; font-weight: 800; color: #ffffff;" id="btnAutoInstallText">전용 앱 설치</div>
-              <div style="font-size: 12px; color: #e2e8f0; opacity: 0.9; margin-top: 2px;">원터치로 바탕화면에 오뺀 전용 앱 즉시 설치</div>
-            </div>
-            <span style="font-size: 16px; opacity: 0.9;">➔</span>
-          </button>
-
-          <!-- 2. 크롬 바로가기 -->
-          <button type="button" class="btn-shortcut-option-chrome" id="btnChromeShortcut" onclick="executeChromeShortcut()">
-            <span style="font-size: 26px;">🌐</span>
-            <div style="flex: 1; text-align: left;">
-              <div style="font-size: 16px; font-weight: 800; color: #4ade80;">크롬 바로가기</div>
-              <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">원터치로 바탕화면에 크롬 바로가기 즉시 생성</div>
+              <div style="font-size: 16px; font-weight: 800; color: #4ade80;" id="btnAutoInstallText">크롬 바로가기</div>
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">앱 설치 없이 크롬 마크가 달린 순수 바로가기 추가</div>
             </div>
             <span style="font-size: 16px; color: #4ade80; opacity: 0.9;">➔</span>
           </button>
 
-          <!-- 3. 사파리 바로가기 -->
+          <!-- 2. 사파리 바로가기 -->
           <button type="button" class="btn-shortcut-option-safari" id="btnSafariShortcut" onclick="executeSafariShortcut()">
             <span style="font-size: 26px;">🍎</span>
             <div style="flex: 1; text-align: left;">
@@ -602,7 +568,6 @@
         <button class="sheet-close" onclick="closeModal('iosInstallGuideModal')">✕</button>
       </div>
       <div class="modal-body" style="padding: 14px 16px 22px; text-align: center;">
-        <!-- 카카오톡 인앱 브라우저일 때 사파리 전환 버튼 -->
         <div id="iosKakaoAlert" style="display: none; background: linear-gradient(135deg, #fee500, #facc15); color: #000; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px; text-align: left;">
           <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">💬 카톡에서는 사파리로 먼저 열어주세요!</div>
           <button type="button" onclick="escapeKakaoToExternalBrowser('safari')" style="width: 100%; background: #000; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">
@@ -626,66 +591,41 @@
     </div>
   </div>
 
-  <!-- [모달 11] iOS 전용 앱 설치 (프로파일 다운로드 후 설정 앱 1-Touch 연결 모달) -->
+  <!-- [모달 11] 크롬(Chrome) 순수 바로가기 안내 모달 -->
   <iframe id="iosProfileDownloadFrame" style="display:none; width:0; height:0; border:0;"></iframe>
   <div class="modal-overlay" id="iosProfileCompleteModal">
     <div class="bottom-sheet ios-guide-sheet" style="max-height: 90vh; overflow-y: auto;">
       <div class="sheet-header">
-        <div class="sheet-title">📲 iOS 전용 앱 설치 완료하기</div>
+        <div class="sheet-title">🌐 크롬(Chrome) 바로가기 추가 방법</div>
         <button class="sheet-close" onclick="closeModal('iosProfileCompleteModal')">✕</button>
       </div>
       <div class="modal-body" style="padding: 16px 18px 24px; text-align: center;">
-        <div style="background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(59, 130, 246, 0.5); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
-          <div style="font-size: 15px; font-weight: 800; color: #60a5fa; margin-bottom: 6px;">
-            ✅ "프로필이 다운로드됨" 창이 떴다면 성공입니다!
+        <div style="background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.45); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: left;">
+          <div style="font-size: 15px; font-weight: 800; color: #4ade80; margin-bottom: 6px;">
+            ✅ 앱 설치(APK)가 완전히 해제되었습니다!
           </div>
           <div style="font-size: 12px; color: #e2e8f0; line-height: 1.55;">
-            애플(iPhone/iPad) 보안 정책상 다운로드된 전용 앱은 <strong>[설정] 앱에서 [설치]</strong>를 눌러야 바탕화면에 아이콘이 생성됩니다.
+            이제 크롬에서 추가하시면 앱 설치나 보안 경고 없이, <strong>크롬 마크가 찍힌 100% 순수 바로가기</strong>로 바탕화면에 생성됩니다.
           </div>
         </div>
-
-        <!-- 원터치 아이폰/아이패드 설정 앱 바로 열기 버튼 -->
-        <button type="button" class="btn-shortcut-primary" onclick="openIosSettingsApp()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5); padding: 15px; font-size: 15px; font-weight: 800; margin-bottom: 14px; width: 100%;">
-          ⚙️ 1터치로 아이폰/아이패드 [설정] 앱 열기
-        </button>
 
         <div class="ios-steps-container" style="margin-bottom: 14px; text-align: left;">
           <div class="ios-step-card">
-            <div class="ios-step-num">1</div>
+            <div class="ios-step-num" style="background: #22c55e; color: #000;">1</div>
             <div class="ios-step-content">
-              화면에 뜬 <strong>"프로필이 다운로드됨"</strong> 알림창에서 <strong>[닫기]</strong>를 누른 뒤, 위 <strong>[⚙️ 설정 앱 열기]</strong> 버튼을 누릅니다.
+              크롬 화면 우측 상단 <strong>점 3개 메뉴 [ ⋮ ]</strong>를 터치합니다.
             </div>
           </div>
           <div class="ios-step-card">
-            <div class="ios-step-num">2</div>
+            <div class="ios-step-num" style="background: #22c55e; color: #000;">2</div>
             <div class="ios-step-content">
-              설정 앱 상단(Apple ID 바로 아래)에 새로 생긴 <strong>[프로필이 다운로드됨]</strong>을 터치합니다.
-            </div>
-          </div>
-          <div class="ios-step-card">
-            <div class="ios-step-num">3</div>
-            <div class="ios-step-content">
-              우측 상단 <strong>[설치]</strong>를 누르면 바탕화면에 <strong>오뺀 전용 앱</strong>이 즉시 생성됩니다!
+              메뉴에서 <strong>[홈 화면에 추가]</strong> ➔ <strong>[추가]</strong>를 누르면 크롬 바로가기 생성 완료!
             </div>
           </div>
         </div>
 
-        <!-- 설정 앱 이동 없이 사파리에서 바로 추가하고 싶은 경우 -->
-        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
-          <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 8px;">
-            💡 설정 앱에 들어가기 번거로우신가요? <strong>사파리 바로가기</strong>로 2초 만에 추가할 수도 있습니다!
-          </div>
-          <button type="button" class="btn-shortcut-option-safari" onclick="switchToSafariGuideFromProfile()" style="width: 100%; padding: 10px; justify-content: center;">
-            <span style="font-size: 16px;">🍎</span>
-            <span style="font-size: 13px; font-weight: 800; color: #38bdf8;">사파리 바로가기 방법(1번 스크린샷) 보기</span>
-          </button>
-        </div>
-
-        <button type="button" class="btn-shortcut-secondary" onclick="downloadIosProfile()" style="margin-bottom: 8px; font-size: 12px;">
-          📥 프로필 다시 다운로드하기
-        </button>
-        <button type="button" class="btn-shortcut-secondary" onclick="closeModal('iosProfileCompleteModal')">
-          닫기
+        <button type="button" class="btn-shortcut-primary" onclick="closeModal('iosProfileCompleteModal')" style="background: linear-gradient(135deg, #16a34a, #15803d); width: 100%;">
+          확인 (닫기)
         </button>
       </div>
     </div>

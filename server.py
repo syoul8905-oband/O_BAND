@@ -352,22 +352,12 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'success': True, 'window': get_booking_window()})
             return
 
-        # 5-1. 바로가기 생성 모드 전환 (전용앱 WebAPK vs 크롬 바로가기 Shortcut): /api/shortcut-mode
-        if path == '/api/shortcut-mode':
-            mode = query.get('mode', ['app'])[0]
-            SHORTCUT_MODE_STATE['mode'] = mode
-            SHORTCUT_MODE_STATE['ts'] = time.time()
-            self.send_json({'success': True, 'mode': mode})
-            return
-
-        # 5-2. 삼성 인터넷(SamsungBrowser)에서 Google Play 프로텍트 차단 경고(구형 WebAPK 생성) 원천 방지
+        # 5-1. 순수 모바일 웹 매니페스트(앱 설치/WebAPK 비활성화 -> 순수 브라우저 바로가기 전용)
         if path == '/manifest.json':
-            ua = self.headers.get('User-Agent', '') if hasattr(self, 'headers') and self.headers else ''
             manifest_path = os.path.join(PUBLIC_DIR, 'manifest.json')
             with open(manifest_path, 'r', encoding='utf-8') as f:
                 manifest_data = json.load(f)
-            if 'SamsungBrowser' in ua:
-                manifest_data['display'] = 'browser'
+            manifest_data['display'] = 'browser'
             body_bytes = json.dumps(manifest_data, ensure_ascii=False).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/manifest+json; charset=utf-8')
@@ -376,28 +366,6 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body_bytes)
             return
-
-        # 5-3. /icon-512.png 동적 제어 (크롬 바로가기 선택 시 WebApkIconsHasher 404 폴백으로 순수 크롬 바로가기 생성)
-        if path in ['/icon-512.png', '/icon-maskable-512.png']:
-            if SHORTCUT_MODE_STATE['mode'] == 'chrome' and (time.time() - SHORTCUT_MODE_STATE['ts'] < 15.0):
-                SHORTCUT_MODE_STATE['mode'] = 'app'
-                self.send_response(404)
-                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                self.end_headers()
-                return
-            icon_file_path = os.path.join(PUBLIC_DIR, path.lstrip('/'))
-            if os.path.exists(icon_file_path):
-                with open(icon_file_path, 'rb') as f:
-                    data = f.read()
-                self.send_response(200)
-                self.send_header('Content-Type', 'image/png')
-                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Expires', '0')
-                self.send_header('Content-Length', str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-                return
 
         # 6. 아이폰(iOS) WebClip 구성 프로파일 다운로드: /install.mobileconfig
         if path == '/install.mobileconfig':
