@@ -22,7 +22,7 @@ if sys.stdout.encoding != 'utf-8':
     except Exception:
         pass
 
-PORT = 5500
+PORT = int(os.environ.get('PORT', 5500))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
