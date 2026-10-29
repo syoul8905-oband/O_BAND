@@ -1424,7 +1424,7 @@ function initSleepModeTracker() {
 }
 
 // 16. 바탕화면 바로가기 / 홈 화면에 앱 추가 시스템
-let deferredInstallPrompt = null;
+let deferredInstallPrompt = window.deferredInstallPrompt || null;
 
 // PWA Service Worker 등록
 if ('serviceWorker' in navigator) {
@@ -1437,13 +1437,14 @@ if ('serviceWorker' in navigator) {
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
+  window.deferredInstallPrompt = e;
   deferredInstallPrompt = e;
   console.log('✨ PWA 홈 화면 추가 프롬프트 준비 완료');
   checkPwaInstallBanner();
   const btn = document.getElementById('btnAutoInstallText');
-  if (btn) btn.textContent = '✨ 홈 화면에 바로가기 추가하기';
+  if (btn) btn.textContent = '전용 앱으로 설치 (PWA 자동설치)';
   const icon = document.getElementById('btnAutoInstallIcon');
-  if (icon) icon.textContent = '📱';
+  if (icon) icon.textContent = '📲';
 });
 
 function handleShortcutNavClick() {
@@ -1514,7 +1515,7 @@ function executeShortcutCreation() {
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const isMobile = isAndroid || isIOS;
+  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
 
   // 1. 카카오톡 인앱 브라우저: 외부 브라우저(크롬/사파리)로 탈출 실행
   if (isKakao) {
@@ -1523,15 +1524,16 @@ function executeShortcutCreation() {
     return;
   }
 
-  // 2. 모바일 브라우저(크롬/삼성인터넷 등)에서 PWA 설치 프롬프트가 대기 중인 경우
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then((choiceResult) => {
-      if (choiceResult.outcome === 'accepted') {
+  // 2. 모바일 브라우저(크롬/삼성인터넷 등)에서 PWA 설치 프롬프트가 대기 중인 경우: 1-Touch 실행
+  if (prompt) {
+    closeModal('shortcutModal');
+    prompt.prompt();
+    prompt.userChoice.then((choiceResult) => {
+      if (choiceResult && choiceResult.outcome === 'accepted') {
         showToast('🎉 스마트폰 홈 화면에 앱 바로가기가 설치되었습니다!');
         dismissPwaBanner();
-        closeModal('shortcutModal');
       }
+      window.deferredInstallPrompt = null;
       deferredInstallPrompt = null;
     });
     return;
@@ -1544,13 +1546,7 @@ function executeShortcutCreation() {
     return;
   }
 
-  // 4. 모바일 환경인데 프롬프트가 지원되지 않는 경우
-  if (isMobile) {
-    alert('📱 브라우저 우측 상단 메뉴 [⋮]을 누른 후 [홈 화면에 추가] 또는 [앱 설치]를 선택해 주세요!');
-    return;
-  }
-
-  // 5. 오직 PC 데스크톱 환경에서만 .url 파일 다운로드 실행
+  // 4. PC 데스크톱 환경 또는 프롬프트 미지원 모바일
   downloadDesktopShortcut();
   closeModal('shortcutModal');
 }
@@ -1560,37 +1556,93 @@ function executeChromeShortcut() {
   const isKakao = /KAKAOTALK/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
+  const prompt = window.deferredInstallPrompt || deferredInstallPrompt;
 
+  // 1. 카카오톡 인앱 브라우저: 크롬으로 즉시 전환 (action=chrome_shortcut 전달하여 크롬에서 자동 기동)
   if (isKakao) {
-    showToast('🚀 크롬(Chrome) 브라우저로 전환합니다...');
-    escapeKakaoToExternalBrowser('chrome');
-    return;
-  }
-
-  if (isIOS) {
-    if (/CriOS/i.test(userAgent)) {
-      alert('🌐 크롬 우측 상단 [공유 📤] ➔ [홈 화면에 추가 ➕]를 선택하시면 크롬 바로가기가 생성됩니다!');
-      closeModal('shortcutModal');
+    showToast('🚀 크롬(Chrome) 브라우저로 전환하여 바로가기를 자동 생성합니다...');
+    const host = window.location.host;
+    const path = window.location.pathname;
+    const targetUrl = `${host}${path}?action=chrome_shortcut`;
+    if (isAndroid) {
+      window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+      setTimeout(() => {
+        window.location.href = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+      }, 500);
     } else {
-      const openChrome = confirm('💡 크롬 앱으로 바로가기를 만드시겠습니까?\n[확인]을 누르면 크롬으로 이동하며, [취소]를 누르면 사파리 바로가기 안내를 보여드립니다.');
-      if (openChrome) {
-        window.location.href = `googlechrome://${window.location.host}${window.location.pathname}${window.location.search}`;
-      } else {
-        executeSafariShortcut();
-      }
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent('https://' + targetUrl)}`;
+      setTimeout(() => {
+        try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
+      }, 200);
     }
     return;
   }
 
-  if (isAndroid) {
-    alert('💡 크롬 브라우저 우측 상단 [ ⋮ ] 메뉴를 누른 후\n[홈 화면에 추가]를 선택하시면 크롬 바로가기가 생성됩니다!');
+  // 2. 크롬/안드로이드 네이티브 홈 화면 추가 프롬프트 즉시 1-Touch 실행!
+  if (prompt) {
+    closeModal('shortcutModal');
+    prompt.prompt();
+    prompt.userChoice.then((choiceResult) => {
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        showToast('🎉 스마트폰 홈 화면에 크롬 바로가기가 성공적으로 추가되었습니다!');
+        dismissPwaBanner();
+      }
+      window.deferredInstallPrompt = null;
+      deferredInstallPrompt = null;
+    });
+    return;
+  }
+
+  // 3. 아이폰(iOS)인 경우:
+  // 애플 OS는 보안 정책상 타사 브라우저(크롬 등)의 홈 화면 바로가기 추가를 차단합니다.
+  // 홈 화면에 바로가기를 추가하는 가장 확실한 1-Touch 방식인 애플 공식 프로파일(WebClip)을 즉시 다운로드합니다!
+  if (isIOS) {
+    showToast('🍎 아이폰 바탕화면 바로가기 생성을 위해 애플 공식 프로파일을 다운로드합니다!');
+    closeModal('shortcutModal');
+    downloadIosProfile();
+    return;
+  }
+
+  // 4. PC 데스크톱(Windows / Mac 등)인 경우:
+  // 클릭 즉시 PC 바탕화면에 추가할 크롬 바로가기(.url) 파일을 다운로드 실행!
+  if (!isAndroid && !isIOS) {
+    downloadDesktopShortcut();
     closeModal('shortcutModal');
     return;
   }
 
-  // PC
-  alert('💡 크롬 우측 상단 메뉴 [ ⋮ ] ➔ [전송, 저장 및 공유] ➔ [바로가기 만들기]를 선택하시면 크롬 바로가기가 생성됩니다!');
-  closeModal('shortcutModal');
+  // 5. 안드로이드 환경인데 prompt가 0.1초 차이로 준비 중인 경우 대비 폴링 재시도
+  showToast('⚡ 크롬 바로가기 추가 창을 실행하는 중입니다...');
+  let pollAttempts = 0;
+  const pollTimer = setInterval(() => {
+    pollAttempts++;
+    const activePrompt = window.deferredInstallPrompt || deferredInstallPrompt;
+    if (activePrompt) {
+      clearInterval(pollTimer);
+      closeModal('shortcutModal');
+      activePrompt.prompt();
+      activePrompt.userChoice.then((choiceResult) => {
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          showToast('🎉 스마트폰 홈 화면에 크롬 바로가기가 생성되었습니다!');
+          dismissPwaBanner();
+        }
+        window.deferredInstallPrompt = null;
+        deferredInstallPrompt = null;
+      });
+    } else if (pollAttempts >= 8) {
+      clearInterval(pollTimer);
+      const isStandalone = ('standalone' in window.navigator && window.navigator.standalone) ||
+                           window.matchMedia('(display-mode: standalone)').matches;
+      if (isStandalone) {
+        showToast('🎉 이미 스마트폰에 바로가기 앱이 설치되어 있습니다!');
+        closeModal('shortcutModal');
+      } else {
+        // 백업: PC 파일 다운로드 및 안내
+        downloadDesktopShortcut();
+        closeModal('shortcutModal');
+      }
+    }
+  }, 100);
 }
 
 function executeSafariShortcut() {
@@ -1600,7 +1652,7 @@ function executeSafariShortcut() {
   const isAndroid = /Android/i.test(userAgent);
 
   if (isAndroid) {
-    alert('🍎 사파리(Safari)는 아이폰/아이패드 전용 브라우저입니다.\n안드로이드 폰에서는 [크롬 바로가기]를 이용해 주세요!');
+    showToast('🍎 사파리는 아이폰 전용입니다. [크롬 바로가기]를 이용해 주세요!');
     return;
   }
 
@@ -1616,7 +1668,8 @@ function executeSafariShortcut() {
     return;
   }
 
-  alert('🍎 사파리(Safari)는 애플 기기 전용 브라우저입니다.\nPC에서는 [PC 바탕화면 바로가기]를 이용해 주세요!');
+  downloadDesktopShortcut();
+  closeModal('shortcutModal');
 }
 
 function executePcShortcut() {
@@ -1639,13 +1692,14 @@ function escapeKakaoToExternalBrowser(targetBrowser) {
   const userAgent = navigator.userAgent || '';
   const isAndroid = /Android/i.test(userAgent);
   const host = window.location.host;
-  const path = window.location.pathname + window.location.search;
+  const path = window.location.pathname;
   const fullUrl = window.location.href;
+  const targetUrl = `${host}${path}?action=chrome_shortcut`;
 
   if (isAndroid) {
     // 안드로이드 크롬 패키지 지정 인텐트 (갤럭시/안드로이드 카톡 탈출 표준)
-    const chromeIntent = `intent://${host}${path}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
-    const genericIntent = `intent://${host}${path}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+    const chromeIntent = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+    const genericIntent = `intent://${targetUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
 
     // 1차 크롬 인텐트 실행
     window.location.href = chromeIntent;
@@ -1665,7 +1719,7 @@ function escapeKakaoToExternalBrowser(targetBrowser) {
       // iOS 사파리 탈출 스킴 및 카카오 인앱 브라우저 닫기
       window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(fullUrl)}`;
       setTimeout(() => {
-        window.location.href = 'kakaoweb://closeBrowser';
+        try { window.location.href = 'kakaoweb://closeBrowser'; } catch(e) {}
       }, 200);
     }
   }

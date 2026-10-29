@@ -18,6 +18,34 @@
   <link rel="stylesheet" href="style.css">
   <!-- 카카오톡 인앱 브라우저 감지 시 외부 브라우저(크롬/사파리)로 즉시 자동 탈출 -->
   <script>
+    window.deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      window.deferredInstallPrompt = e;
+      console.log('✅ [PWA] beforeinstallprompt 조기 캡처 완료');
+      
+      // 만약 URL 파라미터에 바로가기 생성 요청(action)이 있으면 크롬 열리자마자 1-Touch 자동 실행
+      try {
+        var sp = new URLSearchParams(window.location.search);
+        var act = sp.get('action');
+        if (act === 'chrome_shortcut' || act === 'add_shortcut' || act === 'install') {
+          setTimeout(function() {
+            if (window.deferredInstallPrompt) {
+              window.deferredInstallPrompt.prompt();
+              window.deferredInstallPrompt.userChoice.then(function(res) {
+                if (res && res.outcome === 'accepted') {
+                  if (typeof showToast === 'function') {
+                    showToast('🎉 스마트폰 홈 화면에 크롬 바로가기가 추가되었습니다!');
+                  }
+                }
+                window.deferredInstallPrompt = null;
+              });
+            }
+          }, 600);
+        }
+      } catch(err) {}
+    });
+
     (function() {
       var ua = navigator.userAgent || '';
       if (/KAKAOTALK/i.test(ua)) {
