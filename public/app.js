@@ -483,6 +483,9 @@ function renderDayTimeline(dateStr) {
           <button type="button" class="btn-share-icon" onclick="shareReservationById(${r.id})">
             💬 공유
           </button>
+          <button type="button" class="btn-edit-res" onclick="openEditBookingModal(${r.id})">
+            ✏️ 수정
+          </button>
           ${isAdmin ? `
             <button class="btn-force-cancel" onclick="adminForceCancel(${r.id}, '${r.start_time}~${r.end_time}', '${escapeHtml(r.member_name)}')">
               👑 강제취소
@@ -515,8 +518,12 @@ function refreshTimeSlotsForDate(targetDate) {
   const endSelect = document.getElementById('bookEndTime');
   if (!startSelect || !endSelect) return;
 
-  // 당일 예약 건수 조회 (확정 건만)
-  currentDayBookings = monthReservations.filter(r => r.res_date === targetDate && r.status === 'confirmed');
+  // 당일 예약 건수 조회 (확정 건만, 수정 모드일 때는 수정 중인 본인 예약 제외하여 시간 재선택 허용)
+  const editIdEl = document.getElementById('editBookingId');
+  const editingId = (editIdEl && editIdEl.value) ? Number(editIdEl.value) : 0;
+  currentDayBookings = monthReservations.filter(
+    r => r.res_date === targetDate && r.status === 'confirmed' && Number(r.id) !== editingId
+  );
   currentDayBookings.sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   // 상단 예약 완료 알림 박스 표출
@@ -798,14 +805,75 @@ async function submitTeamChips(e) {
   }
 }
 
-// 6. 예약 모달 열기 및 제출
+// 6. 예약 모달 열기(신규 등록 / 기존 예약 수정) 및 제출
 function openBookingModalForSelectedDate() {
+  const editIdEl = document.getElementById('editBookingId');
+  const titleEl = document.getElementById('bookingModalTitle');
+  const noticeEl = document.getElementById('editBookingNotice');
+  const pinLabelEl = document.getElementById('bookingPinLabel');
+  const pinInputEl = document.getElementById('bookPin');
+  const submitBtnEl = document.getElementById('btnSubmitBooking');
+
+  if (editIdEl) editIdEl.value = '';
+  if (titleEl) titleEl.textContent = '🎸 합주실 예약 등록';
+  if (noticeEl) noticeEl.style.display = 'none';
+  if (pinLabelEl) pinLabelEl.textContent = '🔒 본인 확인 비밀번호 (PIN 숫자 4자리)';
+  if (pinInputEl) {
+    pinInputEl.placeholder = '수정·취소 시 사용할 숫자 4자리';
+    pinInputEl.value = isAdmin ? (adminPin || '9999') : '';
+  }
+  if (submitBtnEl) submitBtnEl.textContent = '예약 완료하기';
+
   document.getElementById('bookDate').value = selectedDate;
   document.getElementById('bookMemberName').value = '';
-  document.getElementById('bookPin').value = isAdmin ? (adminPin || '9999') : '';
   
   renderTeamOptions();
   refreshTimeSlotsForDate(selectedDate);
+  openModal('bookingModal');
+}
+
+function openEditBookingModal(id) {
+  const r = monthReservations.find(item => Number(item.id) === Number(id));
+  if (!r) {
+    alert('수정할 예약 정보를 찾을 수 없습니다.');
+    return;
+  }
+
+  const editIdEl = document.getElementById('editBookingId');
+  const titleEl = document.getElementById('bookingModalTitle');
+  const noticeEl = document.getElementById('editBookingNotice');
+  const pinLabelEl = document.getElementById('bookingPinLabel');
+  const pinInputEl = document.getElementById('bookPin');
+  const submitBtnEl = document.getElementById('btnSubmitBooking');
+
+  if (editIdEl) editIdEl.value = String(r.id);
+  if (titleEl) titleEl.textContent = '✏️ 합주실 예약 내용 수정';
+  if (noticeEl) noticeEl.style.display = 'block';
+  if (pinLabelEl) pinLabelEl.textContent = '🔑 예약 시 등록한 4자리 비밀번호(PIN) 입력';
+  if (pinInputEl) {
+    pinInputEl.placeholder = '예약 시 설정한 숫자 4자리 입력';
+    pinInputEl.value = isAdmin ? (adminPin || '9999') : '';
+  }
+  if (submitBtnEl) submitBtnEl.textContent = '✏️ 예약 수정 완료하기';
+
+  document.getElementById('bookDate').value = r.res_date;
+  document.getElementById('bookMemberName').value = r.member_name || '';
+
+  renderTeamOptions();
+  setTeamName(r.band_team || '전체합주');
+  refreshTimeSlotsForDate(r.res_date);
+
+  const startSelect = document.getElementById('bookStartTime');
+  const endSelect = document.getElementById('bookEndTime');
+  if (startSelect) {
+    startSelect.value = r.start_time;
+    updateEndTimeOptions();
+  }
+  if (endSelect) {
+    endSelect.value = r.end_time;
+    validateSelectedTimeRange();
+  }
+
   openModal('bookingModal');
 }
 
@@ -813,6 +881,9 @@ async function submitBooking(e) {
   e.preventDefault();
   const teamEl = document.getElementById('bookBandTeam');
   const selectedTeam = teamEl ? teamEl.value.trim() : '전체합주';
+  const editIdEl = document.getElementById('editBookingId');
+  const editId = editIdEl ? editIdEl.value.trim() : '';
+  const isEditMode = Boolean(editId);
 
   const body = {
     res_date: document.getElementById('bookDate').value,
@@ -825,37 +896,60 @@ async function submitBooking(e) {
     pin: document.getElementById('bookPin').value.trim()
   };
 
+  if (isEditMode) {
+    body.id = Number(editId);
+  }
+
   if (body.start_time >= body.end_time) {
     alert('종료 시간은 시작 시간보다 늦어야 합니다.');
     return;
   }
 
+  const endpoint = isEditMode ? `${API_BASE}/api/reservations/update` : `${API_BASE}/api/reservations`;
+
   try {
-    const res = await fetch(`${API_BASE}/api/reservations`, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const result = await res.json();
     if (!result.success) {
-      alert(result.message || '예약 실패');
+      alert(result.message || (isEditMode ? '예약 수정 실패' : '예약 실패'));
+      if (res.status === 403) {
+        const pinInput = document.getElementById('bookPin');
+        if (pinInput) pinInput.focus();
+      }
       return;
     }
+    if (editIdEl) editIdEl.value = '';
     closeModal('bookingModal');
+
+    // 날짜가 변경된 경우 해당 날짜/월로 포커스 이동
+    selectedDate = body.res_date;
+    const [ry, rm] = body.res_date.split('-').map(Number);
+    if (ry && rm) {
+      calYear = ry;
+      calMonth = rm;
+    }
 
     // 캘린더 데이터 갱신
     await loadMonthData(calYear, calMonth);
     renderCalendar();
     renderDayTimeline(selectedDate);
 
-    // 예약 완료 & 카톡 공유 모달 표출
-    openBookingSuccessModal({
-      res_date: body.res_date,
-      start_time: body.start_time,
-      end_time: body.end_time,
-      band_team: body.band_team,
-      member_name: body.member_name
-    });
+    if (isEditMode) {
+      showToast('✏️ 예약 내용이 성공적으로 수정되었습니다!');
+    } else {
+      // 신규 예약 완료 시 카톡 공유 모달 표출
+      openBookingSuccessModal({
+        res_date: body.res_date,
+        start_time: body.start_time,
+        end_time: body.end_time,
+        band_team: body.band_team,
+        member_name: body.member_name
+      });
+    }
   } catch (err) {
     alert(`오류 발생: ${err.message}`);
   }

@@ -533,6 +533,95 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'success': True, 'message': '합주실 예약이 완료되었습니다!', 'id': new_id})
             return
 
+        # 1-1. 예약 수정: POST /api/reservations/update
+        if path == '/api/reservations/update':
+            res_id = body.get('id')
+            res_date = body.get('res_date')
+            start_time = body.get('start_time')
+            end_time = body.get('end_time')
+            member_name = body.get('member_name', '').strip()
+            band_team = body.get('band_team', '전체합주').strip()
+            part = body.get('part', '합주').strip()
+            purpose = body.get('purpose', '').strip()
+            pin = str(body.get('pin', '')).strip()
+
+            if not res_id or not res_date or not start_time or not end_time or not member_name or not pin:
+                self.send_json({'success': False, 'message': '예약 ID, 날짜, 시작/종료 시간, 예약자명, 4자리 비밀번호(PIN)는 필수입니다.'}, 400)
+                return
+
+            if start_time >= end_time:
+                self.send_json({'success': False, 'message': '종료 시간은 시작 시간보다 늦어야 합니다.'}, 400)
+                return
+
+            if len(pin) != 4 or not pin.isdigit():
+                self.send_json({'success': False, 'message': '비밀번호(PIN)는 숫자 4자리로 입력해 주세요.'}, 400)
+                return
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT id, pin, member_name FROM reservations WHERE id = ? AND status = 'confirmed'", (res_id,))
+            existing = cur.fetchone()
+            if not existing:
+                conn.close()
+                self.send_json({'success': False, 'message': '해당 예약을 찾을 수 없거나 이미 취소되었습니다.'}, 404)
+                return
+
+            cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'admin_pin'")
+            admin_row = cur.fetchone()
+            admin_pin = admin_row['setting_value'] if admin_row else '9999'
+            is_admin_req = (pin == '9999' or pin == admin_pin)
+
+            if existing['pin'] != pin and not is_admin_req:
+                conn.close()
+                self.send_json({'success': False, 'message': '비밀번호(PIN)가 일치하지 않습니다. 예약 시 등록한 4자리 번호를 입력해 주세요.'}, 403)
+                return
+
+            window = get_booking_window()
+            today_str = window['today']
+            max_date_str = window['max_allowed_date']
+
+            if res_date < today_str and not is_admin_req:
+                conn.close()
+                self.send_json({'success': False, 'message': '지난 날짜로는 예약을 변경할 수 없습니다.'}, 400)
+                return
+
+            if res_date > max_date_str and not is_admin_req:
+                conn.close()
+                self.send_json({
+                    'success': False,
+                    'message': f'해당 날짜는 아직 예약이 오픈되지 않았습니다.\n(현재 예약 가능 기간: {today_str} ~ {max_date_str})'
+                }, 400)
+                return
+
+            # 본인 예약(id != ?)을 제외한 중복 예약 검증
+            cur.execute('''
+                SELECT id, member_name, start_time, end_time
+                FROM reservations
+                WHERE res_date = ?
+                  AND status = 'confirmed'
+                  AND id != ?
+                  AND NOT (end_time <= ? OR start_time >= ?)
+            ''', (res_date, res_id, start_time, end_time))
+            overlap = cur.fetchone()
+            if overlap:
+                conn.close()
+                self.send_json({
+                    'success': False,
+                    'message': f'해당 시간대({start_time}~{end_time})에 이미 다른 예약({overlap["member_name"]}님, {overlap["start_time"]}~{overlap["end_time"]})이 존재합니다.'
+                }, 409)
+                return
+
+            cur.execute('''
+                UPDATE reservations
+                SET res_date = ?, start_time = ?, end_time = ?, member_name = ?, band_team = ?, part = ?, purpose = ?
+                WHERE id = ?
+            ''', (res_date, start_time, end_time, member_name, band_team, part, purpose, res_id))
+            conn.commit()
+            conn.close()
+
+            self.send_json({'success': True, 'message': '예약 내용이 성공적으로 수정되었습니다!', 'id': res_id})
+            return
+
         # 2. 예약 취소: POST /api/reservations/cancel
         if path == '/api/reservations/cancel':
             res_id = body.get('id')

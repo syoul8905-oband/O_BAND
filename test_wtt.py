@@ -194,12 +194,50 @@ def run_wtt():
     out2 = sock2.wfile.getvalue().decode('utf-8', errors='ignore')
     assert '[InternetShortcut]' in out2, "/download-shortcut 내용 오류"
 
-    # 순수 크롬 바로가기 / 사파리 바로가기 (1번 스크린샷) 및 일요일 0시 실시간 오픈 감시자 검증
+    # 순수 크롬 바로가기 / 사파리 바로가기 (1번 스크린샷) 및 일요일 0시 실시간 오픈 감시자 & 예약 수정 기능 검증
     assert 'executeChromeShortcut()' in index_html_text and 'executeSafariShortcut()' in index_html_text, "크롬/사파리 바로가기 선택 버튼 누락"
     assert '/safari-guide.jpg' in index_html_text and os.path.exists(os.path.join(server.PUBLIC_DIR, 'safari-guide.jpg')), "사파리 1번 스크린샷 누락"
     assert 'rel="manifest"' not in index_html_text, "PWA manifest 링크가 잔존함"
     assert 'initMidnightResetWatcher' in app_js_text and 'checkAndApplyMidnightRollover' in app_js_text and 'calcMaxAllowedDate' in app_js_text, "일요일 0시 실시간 오픈 감시자 함수 누락"
     assert hasattr(server, 'start_keep_alive_daemon') and 'initServerKeepAlive' in app_js_text, "Render 24시간 절전 방지(Keep-Alive) 데몬 누락"
+    assert 'openEditBookingModal' in app_js_text and 'editBookingId' in index_html_text, "예약 수정 모달 함수/요소 누락"
+
+    import json
+    # 잘못된 PIN(0000)으로 예약 수정 시도 -> 403 차단 검증
+    bad_edit_body = json.dumps({
+        'id': res_id,
+        'res_date': valid_date,
+        'start_time': '19:00',
+        'end_time': '21:00',
+        'member_name': '김보컬수정',
+        'band_team': '2팀',
+        'pin': '0000'
+    }).encode('utf-8')
+    req_bad = f"POST /api/reservations/update HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {len(bad_edit_body)}\r\n\r\n".encode('utf-8') + bad_edit_body
+    sock_bad = MockSocket(req_bad)
+    server.BandClubRequestHandler(sock_bad, ('127.0.0.1', 1234), None)
+    out_bad = sock_bad.wfile.getvalue().decode('utf-8', errors='ignore')
+    assert '403' in out_bad.splitlines()[0], f"잘못된 PIN 수정 요청이 차단되지 않음: {out_bad}"
+
+    # 올바른 PIN(1234)으로 예약 시간(18:00~20:30 -> 19:00~21:30) 및 내용 수정 -> 200 성공 검증
+    good_edit_body = json.dumps({
+        'id': res_id,
+        'res_date': valid_date,
+        'start_time': '19:00',
+        'end_time': '21:30',
+        'member_name': '김보컬수정완료',
+        'band_team': '2팀',
+        'pin': '1234'
+    }).encode('utf-8')
+    req_good = f"POST /api/reservations/update HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {len(good_edit_body)}\r\n\r\n".encode('utf-8') + good_edit_body
+    sock_good = MockSocket(req_good)
+    server.BandClubRequestHandler(sock_good, ('127.0.0.1', 1234), None)
+    out_good = sock_good.wfile.getvalue().decode('utf-8', errors='ignore')
+    assert '200' in out_good.splitlines()[0] and '수정되었습니다' in out_good, f"정상 PIN 예약 수정 실패: {out_good}"
+
+    cur.execute("SELECT start_time, end_time, member_name, band_team FROM reservations WHERE id = ?", (res_id,))
+    edited_row = cur.fetchone()
+    assert edited_row['start_time'] == '19:00' and edited_row['end_time'] == '21:30' and edited_row['member_name'] == '김보컬수정완료' and edited_row['band_team'] == '2팀', "DB 예약 수정 내역 불일치"
 
     print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 
