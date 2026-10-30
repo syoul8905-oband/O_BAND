@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initCalendarSwipe();
     initSleepModeTracker();
     initMidnightResetWatcher();
+    initServerKeepAlive();
 
     // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
     renderCalendar();
@@ -1476,6 +1477,15 @@ function initSleepModeTracker() {
     window.addEventListener(evt, resetSleepTimer, { passive: true });
   });
   resetSleepTimer();
+}
+
+// Render.com 15분 무료 서버 절전(Spin-down) 방지용 클라이언트 하트비트 (4분 주기)
+let keepAliveInterval = null;
+function initServerKeepAlive() {
+  if (keepAliveInterval) clearInterval(keepAliveInterval);
+  keepAliveInterval = setInterval(() => {
+    fetch(`${API_BASE}/api/health?t=${Date.now()}`, { cache: 'no-store' }).catch(() => {});
+  }, 4 * 60 * 1000);
 }
 
 // 16. 바탕화면 바로가기 (앱 설치/PWA 완전 제거 ➔ 100% 순수 크롬/사파리 바로가기 전용)

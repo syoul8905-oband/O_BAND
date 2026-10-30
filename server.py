@@ -13,6 +13,8 @@ import json
 import os
 import sys
 import urllib.parse
+import urllib.request
+import threading
 import base64
 import plistlib
 import time
@@ -800,8 +802,36 @@ class BandClubRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_json({'success': False, 'message': '지원하지 않는 API 경로입니다.'}, 404)
 
+def start_keep_alive_daemon():
+    """Render.com 무료 티어 15분 절전(Spin-down) 원천 차단용 24시간 자가 핑(Self-Ping) 데몬"""
+    target_base = os.environ.get('RENDER_EXTERNAL_URL', 'https://o-band.onrender.com').rstrip('/')
+    health_url = f"{target_base}/api/health"
+
+    def _ping_loop():
+        # 서버 기동 직후 15초 대기 후 5분(300초) 주기로 외부 도메인(/api/health) 호출
+        time.sleep(15)
+        while True:
+            try:
+                req = urllib.request.Request(
+                    f"{health_url}?t={int(time.time())}",
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) O-Band-KeepAlive/2.0',
+                        'Cache-Control': 'no-cache'
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    _ = resp.read()
+            except Exception as e:
+                print(f"[Keep-Alive] Ping warning: {e}")
+            time.sleep(300)  # 5분마다 실행 (Render 15분 절전 제한 완벽 방어)
+
+    t = threading.Thread(target=_ping_loop, name="RenderKeepAliveThread", daemon=True)
+    t.start()
+    return t
+
 def run():
     init_db()
+    start_keep_alive_daemon()
     server_address = ('0.0.0.0', PORT)
     with socketserver.ThreadingTCPServer(server_address, BandClubRequestHandler) as httpd:
         httpd.allow_reuse_address = True

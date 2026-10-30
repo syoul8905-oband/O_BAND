@@ -199,6 +199,7 @@ def run_wtt():
     assert '/safari-guide.jpg' in index_html_text and os.path.exists(os.path.join(server.PUBLIC_DIR, 'safari-guide.jpg')), "사파리 1번 스크린샷 누락"
     assert 'rel="manifest"' not in index_html_text, "PWA manifest 링크가 잔존함"
     assert 'initMidnightResetWatcher' in app_js_text and 'checkAndApplyMidnightRollover' in app_js_text and 'calcMaxAllowedDate' in app_js_text, "일요일 0시 실시간 오픈 감시자 함수 누락"
+    assert hasattr(server, 'start_keep_alive_daemon') and 'initServerKeepAlive' in app_js_text, "Render 24시간 절전 방지(Keep-Alive) 데몬 누락"
 
     print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 
