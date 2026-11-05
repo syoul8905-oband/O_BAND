@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <title>오늘부터 밴드부 (오뺀) - 모바일 전용</title>
   <meta name="theme-color" content="#1a1d27">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
   <link rel="stylesheet" href="style.css">
   <!-- 카카오톡 인앱 브라우저 감지 시 외부 브라우저(크롬/사파리)로 즉시 자동 탈출 -->
   <script>
@@ -511,7 +511,7 @@
       </div>
       <div class="modal-body" style="padding: 16px 20px 24px;">
         <div class="shortcut-hero-card">
-          <img src="/icon.svg" alt="오뺀" class="shortcut-hero-icon">
+          <img src="./icon.svg" alt="오뺀" class="shortcut-hero-icon">
           <div class="shortcut-hero-info">
             <div class="shortcut-hero-title">오늘부터 밴드부 (오뺀)</div>
             <div class="shortcut-hero-sub">앱 설치 없이, 크롬·사파리 브라우저 바로가기로 바탕화면에 깔끔하게 등록됩니다.</div>
@@ -585,17 +585,17 @@
 
         <!-- 확대 안내 및 원터치 확대 버튼 -->
         <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
-          <button type="button" class="btn-manual-zoom-trigger" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')">
+          <button type="button" class="btn-manual-zoom-trigger" onclick="openImageZoom('./safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')">
             🔍 1·2번 표시 부분 크게 확대보기
           </button>
-          <button type="button" class="btn-manual-zoom-trigger secondary" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법', 1.5, 'center')">
+          <button type="button" class="btn-manual-zoom-trigger secondary" onclick="openImageZoom('./safari-guide.jpg', '사파리 바로가기 추가 방법', 1.5, 'center')">
             🖼️ 전체 사진 확대
           </button>
         </div>
 
         <!-- 사용자 첨부 1번 스크린샷 (좌측 불필요한 여백 제거 후 핵심 메뉴 1.6배 크게 기본 표출 + 터치 시 전체화면 확대 뷰어 실행) -->
-        <div class="manual-zoomable-card" onclick="openImageZoom('/safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')" style="border-radius: 14px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.65); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5); margin-bottom: 14px; background: #000; position: relative; cursor: zoom-in;">
-          <img src="/safari-guide.jpg" alt="사파리 바로가기 추가 방법 스크린샷" style="width: 158%; max-width: none; margin-left: -58%; height: auto; display: block;">
+        <div class="manual-zoomable-card" onclick="openImageZoom('./safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')" style="border-radius: 14px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.65); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5); margin-bottom: 14px; background: #000; position: relative; cursor: zoom-in;">
+          <img src="./safari-guide.jpg" alt="사파리 바로가기 추가 방법 스크린샷" style="width: 158%; max-width: none; margin-left: -58%; height: auto; display: block;">
           <div class="manual-zoom-badge">🔍 사진을 터치하면 전체화면으로 확대됩니다</div>
         </div>
 
@@ -625,10 +625,10 @@
             <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
               1️⃣ 크롬 우측 상단 점 3개 메뉴 [ ⋮ ] 터치
             </div>
-            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')">🔍 확대</button>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')">🔍 확대</button>
           </div>
-          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
-            <img src="/chrome-guide-1.jpg" alt="1단계: 점 3개 메뉴 터치" style="width: 100%; height: auto; display: block;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('./chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
+            <img src="./chrome-guide-1.jpg" alt="1단계: 점 3개 메뉴 터치" style="width: 100%; height: auto; display: block;">
             <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
@@ -639,10 +639,10 @@
             <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
               2️⃣ 메뉴에서 [설치 및 바로가기 만들기] 터치
             </div>
-            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')">🔍 확대</button>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')">🔍 확대</button>
           </div>
-          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
-            <img src="/chrome-guide-2.jpg" alt="2단계: 설치 및 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('./chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
+            <img src="./chrome-guide-2.jpg" alt="2단계: 설치 및 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
             <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
@@ -653,10 +653,10 @@
             <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
               3️⃣ [바로가기 만들기] 터치!
             </div>
-            <button type="button" class="btn-step-zoom" onclick="openImageZoom('/chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')">🔍 확대</button>
+            <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')">🔍 확대</button>
           </div>
-          <div class="manual-zoomable-card" onclick="openImageZoom('/chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
-            <img src="/chrome-guide-3.jpg" alt="3단계: 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
+          <div class="manual-zoomable-card" onclick="openImageZoom('./chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')" style="border-radius: 12px; overflow: hidden; border: 2px solid rgba(74, 222, 128, 0.55); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); background: #000; position: relative; cursor: zoom-in;">
+            <img src="./chrome-guide-3.jpg" alt="3단계: 바로가기 만들기 터치" style="width: 100%; height: auto; display: block;">
             <div class="manual-zoom-badge">🔍 터치하여 크게 확대</div>
           </div>
         </div>
