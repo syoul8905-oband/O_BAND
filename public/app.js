@@ -247,7 +247,7 @@ async function loadBookingWindow() {
           noticeEl.innerHTML = `👑 <strong>관리자 모드</strong>: 모든 날짜 선예약 가능 &nbsp;|&nbsp; <span style="text-decoration:underline; cursor:pointer;" onclick="openSettingsModal()">[⚙️ 오픈기간 설정]</span>`;
         } else {
           const nextReset = getNextResetDateStr();
-          noticeEl.textContent = `매주 일요일 리셋 (현재 ${bookingWindow.max_allowed_date}까지 오픈 / 다음 오픈: ${nextReset})`;
+          noticeEl.textContent = `현재 ~${bookingWindow.max_allowed_date} 오픈 (다음: ${nextReset})`;
         }
       }
     }
@@ -347,26 +347,19 @@ function createDayCell(dayNum, dateStr, isOtherMonth) {
   header.innerHTML = `<span class="cal-day-num">${dayNum}</span>`;
   cell.appendChild(header);
 
-  // 당일 예약 현황 칩들
+  // 당일 예약 현황 컴팩트 인디케이터 (도트 + 건수 배지)
   const dayRes = monthReservations.filter(r => r.res_date === dateStr);
   const resContainer = document.createElement('div');
   resContainer.className = 'cal-res-container';
 
   if (dayRes.length > 0) {
-    // 최대 2건까지 칩으로 표출
-    dayRes.slice(0, 2).forEach(r => {
-      const pill = document.createElement('div');
-      pill.className = 'cal-res-pill';
-      pill.textContent = `${r.start_time} ${r.band_team || r.member_name}`;
-      resContainer.appendChild(pill);
-    });
-
-    if (dayRes.length > 2) {
-      const more = document.createElement('div');
-      more.className = 'cal-res-more';
-      more.textContent = `+${dayRes.length - 2}건`;
-      resContainer.appendChild(more);
+    const badge = document.createElement('div');
+    badge.className = 'cal-res-pill cal-res-badge';
+    if (dayRes.length >= 3) {
+      badge.classList.add('is-heavy');
     }
+    badge.innerHTML = `<span class="badge-dot"></span><span class="badge-num">${dayRes.length}건</span>`;
+    resContainer.appendChild(badge);
   }
 
   cell.appendChild(resContainer);
@@ -407,7 +400,12 @@ async function changeMonth(delta) {
     calYear--;
   }
   await loadMonthData(calYear, calMonth);
+  const activePrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`;
+  if (!selectedDate.startsWith(activePrefix)) {
+    selectedDate = `${activePrefix}-01`;
+  }
   renderCalendar();
+  renderDayTimeline(selectedDate);
 }
 
 async function goToToday() {
@@ -425,7 +423,10 @@ async function goToToday() {
 // 4. 선택된 날짜 상세 타임라인 렌더링
 function renderDayTimeline(dateStr) {
   const info = formatDateDisplay(dateStr);
-  document.getElementById('selectedDateTitle').textContent = `📅 ${info.full} 합주 현황`;
+  const dayRes = monthReservations.filter(r => r.res_date === dateStr);
+  dayRes.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+  document.getElementById('selectedDateTitle').textContent = `📅 ${info.full} 합주 현황${dayRes.length > 0 ? ` (총 ${dayRes.length}건)` : ''}`;
   
   const isLocked = dateStr > bookingWindow.max_allowed_date;
   const isPast = dateStr < todayStr;
@@ -453,7 +454,6 @@ function renderDayTimeline(dateStr) {
   }
 
   const listEl = document.getElementById('dayTimelineList');
-  const dayRes = monthReservations.filter(r => r.res_date === dateStr);
 
   if (dayRes.length === 0) {
     let emptyHint = '';
