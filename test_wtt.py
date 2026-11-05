@@ -56,16 +56,16 @@ def run_wtt():
     assert sun_win['max_allowed_date'] == '2026-11-14', f"일요일 0시 전환 후 +7일 오픈 오류: {sun_win['max_allowed_date']}"
     print(f"✅ 2. [KST 일요일 0시 정각 자동 리셋 & 2주 윈도우] 토요일(~{sat_win['max_allowed_date']}) -> 일요일 00:00(~{sun_win['max_allowed_date']}) 즉시 전환 확인")
 
-    # 4. 예약 허용 기간 내 정상 예약 테스트 (오늘 날짜)
+    # 4. 예약 허용 기간 내 정상 예약 테스트 (오늘 날짜 오전 시간)
     valid_date = window['today']
     cur.execute('''
         INSERT INTO reservations (res_date, start_time, end_time, member_name, band_team, part, purpose, pin, created_at, status)
-        VALUES (?, '18:00', '20:30', '김보컬', '정기 1팀', '보컬', '연습곡 합주', '1234', datetime('now'), 'confirmed')
+        VALUES (?, '10:00', '12:00', '김보컬', '정기 1팀', '보컬', '연습곡 합주', '1234', datetime('now'), 'confirmed')
     ''', (valid_date,))
     res_id = cur.lastrowid
     conn.commit()
     assert res_id > 0, "허용 기간 내 예약 실패"
-    print(f"✅ 3. [기간 내 자유 시간 예약] {valid_date} 18:00~20:30 (2.5시간) 정상 등록 성공")
+    print(f"✅ 3. [기간 내 자유 시간 예약] {valid_date} 10:00~12:00 정상 등록 성공")
 
     # 5. 기간 초과(다다음 주 이후) 잠금 테스트
     locked_date = (expected_saturday + timedelta(days=2)).isoformat() # 마감일 이후 월요일
@@ -219,12 +219,12 @@ def run_wtt():
     out_bad = sock_bad.wfile.getvalue().decode('utf-8', errors='ignore')
     assert '403' in out_bad.splitlines()[0], f"잘못된 PIN 수정 요청이 차단되지 않음: {out_bad}"
 
-    # 올바른 PIN(1234)으로 예약 시간(18:00~20:30 -> 19:00~21:30) 및 내용 수정 -> 200 성공 검증
+    # 올바른 PIN(1234)으로 예약 시간(10:00~12:00 -> 13:00~15:00) 및 내용 수정 -> 200 성공 검증
     good_edit_body = json.dumps({
         'id': res_id,
         'res_date': valid_date,
-        'start_time': '19:00',
-        'end_time': '21:30',
+        'start_time': '13:00',
+        'end_time': '15:00',
         'member_name': '김보컬수정완료',
         'band_team': '2팀',
         'pin': '1234'
@@ -237,7 +237,7 @@ def run_wtt():
 
     cur.execute("SELECT start_time, end_time, member_name, band_team FROM reservations WHERE id = ?", (res_id,))
     edited_row = cur.fetchone()
-    assert edited_row['start_time'] == '19:00' and edited_row['end_time'] == '21:30' and edited_row['member_name'] == '김보컬수정완료' and edited_row['band_team'] == '2팀', "DB 예약 수정 내역 불일치"
+    assert edited_row['start_time'] == '13:00' and edited_row['end_time'] == '15:00' and edited_row['member_name'] == '김보컬수정완료' and edited_row['band_team'] == '2팀', "DB 예약 수정 내역 불일치"
 
     print("✅ 9. [드롭다운 & 카카오톡 자동탈출 & 스마트 절전 모드 & iOS 프로파일/바로가기 자동화] 100% 무결 확인")
 

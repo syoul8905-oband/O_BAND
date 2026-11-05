@@ -3,3 +3,7 @@ __pycache__/
 *$py.class
 .vscode/
 .idea/
+scratch/
+data/backups/
+public/e2e_verified.png
+

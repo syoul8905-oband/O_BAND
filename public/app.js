@@ -230,8 +230,13 @@ function getNextResetDateStr() {
 
 async function loadBookingWindow() {
   try {
-    const res = await fetch(`${API_BASE}/api/settings`);
-    const data = await res.json();
+    let data;
+    if (window.ObandDB) {
+      data = await window.ObandDB.getBookingWindow();
+    } else {
+      const res = await fetch(`${API_BASE}/api/settings`);
+      data = await res.json();
+    }
     if (data.success && data.window) {
       bookingWindow = data.window;
       renderTeamQuickChips();
@@ -255,10 +260,17 @@ async function loadBookingWindow() {
 async function loadMonthData(year, month) {
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
   try {
-    const res = await fetch(`${API_BASE}/api/reservations?month=${monthStr}`);
-    const data = await res.json();
-    if (data.success) {
-      monthReservations = data.reservations || [];
+    if (window.ObandDB) {
+      const data = await window.ObandDB.getMonthReservations(year, month);
+      if (data.success) {
+        monthReservations = data.reservations || [];
+      }
+    } else {
+      const res = await fetch(`${API_BASE}/api/reservations?month=${monthStr}`);
+      const data = await res.json();
+      if (data.success) {
+        monthReservations = data.reservations || [];
+      }
     }
   } catch (err) {
     console.error('월간 예약 로드 실패:', err);
@@ -782,15 +794,23 @@ async function submitTeamChips(e) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/settings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.saveSettings({
         quick_teams: teamsVal,
         pin: pinVal
-      })
-    });
-    const result = await res.json();
+      });
+    } else {
+      const res = await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quick_teams: teamsVal,
+          pin: pinVal
+        })
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '저장 실패');
       return;
@@ -905,18 +925,24 @@ async function submitBooking(e) {
     return;
   }
 
-  const endpoint = isEditMode ? `${API_BASE}/api/reservations/update` : `${API_BASE}/api/reservations`;
-
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.saveBooking(body);
+    } else {
+      const endpoint = isEditMode ? `${API_BASE}/api/reservations/update` : `${API_BASE}/api/reservations`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      result = await res.json();
+      result.status = res.status;
+    }
+
     if (!result.success) {
       alert(result.message || (isEditMode ? '예약 수정 실패' : '예약 실패'));
-      if (res.status === 403) {
+      if (result.status === 403) {
         const pinInput = document.getElementById('bookPin');
         if (pinInput) pinInput.focus();
       }
@@ -969,12 +995,17 @@ async function submitCancel(e) {
   const pin = document.getElementById('cancelPin').value.trim();
 
   try {
-    const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(id), pin: pin })
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.cancelBooking(id, pin);
+    } else {
+      const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: Number(id), pin: pin })
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '취소 실패');
       return;
@@ -1011,12 +1042,17 @@ async function submitSettings(e) {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/api/settings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.saveSettings(body);
+    } else {
+      const res = await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '설정 저장 실패');
       return;
@@ -1036,8 +1072,13 @@ async function submitSettings(e) {
 async function loadNotices() {
   const container = document.getElementById('noticeList');
   try {
-    const res = await fetch(`${API_BASE}/api/notices`);
-    const data = await res.json();
+    let data;
+    if (window.ObandDB) {
+      data = await window.ObandDB.getNotices();
+    } else {
+      const res = await fetch(`${API_BASE}/api/notices`);
+      data = await res.json();
+    }
     if (!data.success) throw new Error(data.message);
 
     const notices = data.notices || [];
@@ -1088,12 +1129,17 @@ async function submitNotice(e) {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/api/notices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.saveNotice(body);
+    } else {
+      const res = await fetch(`${API_BASE}/api/notices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '등록 실패');
       return;
@@ -1117,12 +1163,17 @@ async function deleteNotice(id) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/notices/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id, pin: pin })
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.deleteNotice(id, pin);
+    } else {
+      const res = await fetch(`${API_BASE}/api/notices/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, pin: pin })
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '삭제 실패');
       return;
@@ -1146,12 +1197,17 @@ async function submitAdminLogin(e) {
   e.preventDefault();
   const pin = document.getElementById('adminInputPin').value.trim();
   try {
-    const res = await fetch(`${API_BASE}/api/admin/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: pin })
-    });
-    const data = await res.json();
+    let data;
+    if (window.ObandDB) {
+      data = await window.ObandDB.verifyAdmin(pin);
+    } else {
+      const res = await fetch(`${API_BASE}/api/admin/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      });
+      data = await res.json();
+    }
     if (!data.success) {
       alert(data.message || '관리자 비밀번호가 일치하지 않습니다.');
       return;
@@ -1188,12 +1244,17 @@ async function adminForceCancel(id, timeRange, name) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: Number(id), pin: adminPin })
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.cancelBooking(id, adminPin);
+    } else {
+      const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: Number(id), pin: adminPin })
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '취소 실패');
       return;
@@ -1211,8 +1272,13 @@ async function adminForceCancel(id, timeRange, name) {
 async function loadSetlists() {
   const container = document.getElementById('setlistContainer');
   try {
-    const res = await fetch(`${API_BASE}/api/setlists`);
-    const data = await res.json();
+    let data;
+    if (window.ObandDB) {
+      data = await window.ObandDB.getSetlists();
+    } else {
+      const res = await fetch(`${API_BASE}/api/setlists`);
+      data = await res.json();
+    }
     if (!data.success) throw new Error(data.message);
 
     const songs = data.setlists || [];
@@ -1268,12 +1334,17 @@ async function submitSetlist(e) {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/api/setlists`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const result = await res.json();
+    let result;
+    if (window.ObandDB) {
+      result = await window.ObandDB.saveSetlist(body);
+    } else {
+      const res = await fetch(`${API_BASE}/api/setlists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      result = await res.json();
+    }
     if (!result.success) {
       alert(result.message || '등록 실패');
       return;
