@@ -1613,6 +1613,10 @@ function resetSleepTimer() {
 
 function enterSleepMode() {
   isSleeping = true;
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
   const overlay = document.getElementById('sleepModeOverlay');
   if (overlay) overlay.classList.add('active');
   console.log('🌙 오뺀 절전 모드 가동 (트래픽 차단)');
@@ -1623,6 +1627,7 @@ async function wakeFromSleep() {
   if (overlay) overlay.classList.remove('active');
   isSleeping = false;
   resetSleepTimer();
+  initServerKeepAlive();
 
   // 최신 데이터 및 자정(0시) 경과 시 오픈 기간 즉시 갱신
   try {
@@ -1644,12 +1649,22 @@ function initSleepModeTracker() {
   resetSleepTimer();
 }
 
-// Render.com 15분 무료 서버 절전(Spin-down) 방지용 클라이언트 하트비트 (4분 주기)
+// Render.com 15분 무료 서버 절전(Spin-down) 방지용 클라이언트 하트비트
+// Supabase 직결 모드(window.ObandDB)에서는 백엔드 핑이 불필요하므로 트래픽 완전 0(0%)으로 차단
 let keepAliveInterval = null;
 function initServerKeepAlive() {
-  if (keepAliveInterval) clearInterval(keepAliveInterval);
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
+  if (window.ObandDB) {
+    // Supabase BaaS 직결 체제에서는 클라이언트 핑 원천 배제 (트래픽 및 배터리 절약)
+    return;
+  }
   keepAliveInterval = setInterval(() => {
-    fetch(`${API_BASE}/api/health?t=${Date.now()}`, { cache: 'no-store' }).catch(() => {});
+    if (!isSleeping) {
+      fetch(`${API_BASE}/api/health?t=${Date.now()}`, { cache: 'no-store' }).catch(() => {});
+    }
   }, 4 * 60 * 1000);
 }
 
