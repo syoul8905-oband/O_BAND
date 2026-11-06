@@ -6,10 +6,10 @@ const API_BASE = '';
 let todayStr = getTodayString();
 let selectedDate = todayStr;
 
-// 캘린더 표시 상태 (한국 표준시 KST 기준)
-const _initKst = new Date(Date.now() + 9 * 3600 * 1000);
-let calYear = _initKst.getUTCFullYear();
-let calMonth = _initKst.getUTCMonth() + 1; // 1 ~ 12
+// 캘린더 표시 상태 (한국 표준시 KST 또는 WTT 테스트 기준일)
+const [initY, initM] = todayStr.split('-').map(Number);
+let calYear = initY;
+let calMonth = initM; // 1 ~ 12
 
 // 데이터 캐시 (0초 즉시 렌더링 시에도 일요일 기준 2주 마감일을 즉시 계산하여 잠금 오작동 원천 차단)
 let bookingWindow = {
@@ -54,9 +54,60 @@ function checkPwaInstallBanner() {}
 
 function dismissPwaBanner() {}
 
+// WTT 타임머신 모드 컨트롤러 (?test_date= 활성화 시 표출)
+function initTimeTravelWTTBar() {
+  const params = new URLSearchParams(window.location.search);
+  const testDate = params.get('test_date');
+  if (!testDate) return;
+
+  const existing = document.getElementById('wttTimeTravelBar');
+  if (existing) existing.remove();
+
+  const bar = document.createElement('div');
+  bar.id = 'wttTimeTravelBar';
+  bar.className = 'wtt-bar';
+  bar.innerHTML = `
+    <div class="wtt-bar-content">
+      <div class="wtt-header">
+        <span class="wtt-badge">🧪 WTT 타임머신</span>
+        <span class="wtt-current-date">가상 기준일: <strong>${escapeHtml(testDate)}</strong></span>
+        <button type="button" class="wtt-btn-exit" onclick="exitTimeTravelMode()">✕ 해제(현재로)</button>
+      </div>
+      <div class="wtt-quick-pills">
+        <button type="button" class="wtt-pill ${testDate === '2026-11-06' ? 'is-active' : ''}" onclick="setTimeTravelDate('2026-11-06')">11/6(금 현재)</button>
+        <button type="button" class="wtt-pill ${testDate === '2026-11-07' ? 'is-active' : ''}" onclick="setTimeTravelDate('2026-11-07')">11/7(토 마감)</button>
+        <button type="button" class="wtt-pill ${testDate === '2026-11-08' ? 'is-active' : ''}" onclick="setTimeTravelDate('2026-11-08')">11/8(일 1차리셋)</button>
+        <button type="button" class="wtt-pill ${testDate === '2026-11-15' ? 'is-active' : ''}" onclick="setTimeTravelDate('2026-11-15')">11/15(일 2차리셋)</button>
+        <button type="button" class="wtt-pill" onclick="promptCustomDate()">📅 날짜선택</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bar);
+}
+
+function setTimeTravelDate(dateStr) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('test_date', dateStr);
+  window.location.href = url.toString();
+}
+
+function exitTimeTravelMode() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('test_date');
+  window.location.href = url.pathname;
+}
+
+function promptCustomDate() {
+  const val = prompt('테스트할 기준일자를 입력하세요 (형식: YYYY-MM-DD):', getTodayString());
+  if (val && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+    setTimeTravelDate(val.trim());
+  }
+}
+
 // 앱 시작 즉시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    initTimeTravelWTTBar();
     checkKakaoBanner();
     checkPwaInstallBanner();
     updateAdminHeaderUI();
@@ -130,8 +181,13 @@ function initCalendarSwipe() {
   }, { passive: true });
 }
 
-// 날짜 헬퍼 (한국 표준시 KST UTC+9 기준 고정)
+// 날짜 헬퍼 (한국 표준시 KST UTC+9 기준 고정 / WTT ?test_date= 지원)
 function getTodayString() {
+  const params = new URLSearchParams(window.location.search);
+  const mockDate = params.get('test_date');
+  if (mockDate && /^\d{4}-\d{2}-\d{2}$/.test(mockDate.trim())) {
+    return mockDate.trim();
+  }
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const year = kst.getUTCFullYear();
   const month = String(kst.getUTCMonth() + 1).padStart(2, '0');

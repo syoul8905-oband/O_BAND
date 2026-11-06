@@ -26,6 +26,11 @@
   }
 
   function getTodayString() {
+    const params = new URLSearchParams(window.location.search);
+    const mockDate = params.get('test_date');
+    if (mockDate && /^\d{4}-\d{2}-\d{2}$/.test(mockDate.trim())) {
+      return mockDate.trim();
+    }
     const kst = getKstDate();
     const y = kst.getUTCFullYear();
     const m = String(kst.getUTCMonth() + 1).padStart(2, '0');

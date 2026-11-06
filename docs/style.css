@@ -497,6 +497,83 @@ body {
   }
 }
 
+/* WTT 타임머신 테스트 바 (모바일 상단 플로팅 컨트롤러) */
+.wtt-bar {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 20px);
+  max-width: 440px;
+  background: rgba(18, 20, 29, 0.96);
+  border: 1px solid #c084fc;
+  box-shadow: 0 4px 20px rgba(192, 132, 252, 0.35);
+  border-radius: 12px;
+  padding: 8px 10px;
+  z-index: 99999;
+  backdrop-filter: blur(8px);
+  box-sizing: border-box;
+}
+
+.wtt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.wtt-badge {
+  background: linear-gradient(135deg, #7928ca, #ff0080);
+  color: #fff;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.wtt-current-date strong {
+  color: #00dfd8;
+  font-size: 12px;
+}
+
+.wtt-btn-exit {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.wtt-quick-pills {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+
+.wtt-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  border-radius: 6px;
+  font-size: 10px;
+  padding: 4px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.wtt-pill:hover, .wtt-pill.is-active {
+  background: rgba(192, 132, 252, 0.3);
+  border-color: #c084fc;
+  color: #fff;
+  font-weight: 700;
+}
+
 /* -------------------------------------------------------------
    선택된 날짜 상세 예약 현황 (Detail Panel)
 ------------------------------------------------------------- */
