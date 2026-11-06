@@ -33,18 +33,17 @@
     return `${y}-${m}-${d}`;
   }
 
-  function calcMaxAllowedDate(todayStr, openWeeks = 2, resetDay = 0) {
-    const [y, m, d] = todayStr.split('-').map(Number);
-    const dateObj = new Date(y, m - 1, d);
-    const currentDay = dateObj.getDay();
-    let daysUntilReset = (resetDay - currentDay + 7) % 7;
-    if (daysUntilReset === 0) daysUntilReset = 7;
-    const target = new Date(dateObj);
-    target.setDate(dateObj.getDate() + daysUntilReset + (openWeeks - 1) * 7);
-    const ty = target.getFullYear();
-    const tm = String(target.getMonth() + 1).padStart(2, '0');
-    const td = String(target.getDate()).padStart(2, '0');
-    return `${ty}-${tm}-${td}`;
+  // 일요일(resetDay=0) 00:00 기준 예약 허용 마감일(다음 주 토요일) 정밀 계산
+  function calcMaxAllowedDate(baseDateStr, openWeeks = 2, resetDay = 0) {
+    const [y, m, d] = baseDateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const jsDay = dt.getUTCDay(); // 0: 일요일 ~ 6: 토요일
+    const daysSinceReset = (jsDay - Number(resetDay) + 7) % 7;
+    const maxDt = new Date(Date.UTC(y, m - 1, d - daysSinceReset + (Number(openWeeks) * 7) - 1));
+    const my = maxDt.getUTCFullYear();
+    const mm = String(maxDt.getUTCMonth() + 1).padStart(2, '0');
+    const md = String(maxDt.getUTCDate()).padStart(2, '0');
+    return `${my}-${mm}-${md}`;
   }
 
   async function apiFetch(endpoint, options = {}) {
