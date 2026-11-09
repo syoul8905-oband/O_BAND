@@ -10,6 +10,14 @@ async function main() {
   const context = await browser.newContext({
     viewport: { width: 360, height: 740 }
   });
+  await context.addInitScript(() => {
+    window.sessionStorage.setItem('oppaen_auth_user', JSON.stringify({
+      id: 901,
+      username: 'e2e_member',
+      role: 'member',
+      display_name: '부원 공용'
+    }));
+  });
   const page = await context.newPage();
   
   const basePath = 'file:///' + path.resolve(__dirname, '../public/index.html').replace(/\\/g, '/');

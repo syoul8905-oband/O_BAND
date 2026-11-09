@@ -22,22 +22,187 @@ let bookingWindow = {
 };
 let monthReservations = [];
 
-// 관리자 모드 상태
-let adminPin = sessionStorage.getItem('oppaen_admin_pin') || '';
-let isAdmin = Boolean(adminPin);
+// 인증 및 권한 상태 (sessionStorage 전용: 브라우저 종료 시 자동 로그아웃)
+const SAVED_CREDS_KEY = 'oppaen_saved_creds';
+const SAVED_CREDS_CHK_KEY = 'oppaen_save_creds_checked';
+
+function loadAuthSessionUser() {
+  try {
+    const raw = sessionStorage.getItem('oppaen_auth_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+let currentUser = loadAuthSessionUser();
+let isAdmin = Boolean(currentUser && currentUser.role === 'admin');
+let appInitialized = false;
+
+function refreshAuthStateFromStorage() {
+  currentUser = loadAuthSessionUser();
+  isAdmin = Boolean(currentUser && currentUser.role === 'admin');
+}
+
+function prefillSavedCredentials() {
+  const userEl = document.getElementById('loginUsername');
+  const pwEl = document.getElementById('loginPassword');
+  const chkEl = document.getElementById('chkSaveCreds');
+  const errEl = document.getElementById('gateLoginError');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+
+  try {
+    const isSaved = localStorage.getItem(SAVED_CREDS_CHK_KEY) === 'true';
+    const rawCreds = localStorage.getItem(SAVED_CREDS_KEY);
+    if (isSaved && rawCreds) {
+      const creds = JSON.parse(rawCreds);
+      if (userEl) userEl.value = creds.username || '';
+      if (pwEl) pwEl.value = creds.password || '';
+      if (chkEl) chkEl.checked = true;
+      return;
+    }
+  } catch (e) {}
+
+  if (userEl) userEl.value = '';
+  if (pwEl) pwEl.value = '';
+  if (chkEl) chkEl.checked = false;
+}
+
+function showLoginGateScreen() {
+  const gate = document.getElementById('loginGateScreen');
+  const appContainer = document.getElementById('mainAppContainer');
+  const wttBar = document.getElementById('wttTimeTravelBar');
+  if (wttBar) wttBar.remove();
+  if (appContainer) appContainer.style.display = 'none';
+  if (gate) gate.style.display = 'flex';
+  prefillSavedCredentials();
+}
+
+function toggleGatePasswordVisibility() {
+  const pwEl = document.getElementById('loginPassword');
+  const btnEl = document.querySelector('.pw-toggle-btn');
+  if (!pwEl) return;
+  if (pwEl.type === 'password') {
+    pwEl.type = 'text';
+    if (btnEl) btnEl.textContent = '🙈';
+  } else {
+    pwEl.type = 'password';
+    if (btnEl) btnEl.textContent = '👁️';
+  }
+}
+
+async function submitGateLogin(e) {
+  e.preventDefault();
+  const userEl = document.getElementById('loginUsername');
+  const pwEl = document.getElementById('loginPassword');
+  const chkEl = document.getElementById('chkSaveCreds');
+  const errEl = document.getElementById('gateLoginError');
+  const submitBtn = document.getElementById('btnGateLoginSubmit');
+
+  const username = userEl ? userEl.value.trim() : '';
+  const password = pwEl ? pwEl.value : '';
+  const saveCreds = Boolean(chkEl && chkEl.checked);
+
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ 로그인 확인 중...';
+  }
+
+  try {
+    if (!window.ObandDB) {
+      throw new Error('데이터 연결 모듈이 준비되지 않았습니다.');
+    }
+    const result = await window.ObandDB.login(username, password);
+    if (!result || !result.success) {
+      if (errEl) {
+        errEl.textContent = (result && result.message) || '아이디 또는 비밀번호가 일치하지 않습니다.';
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    sessionStorage.setItem('oppaen_auth_user', JSON.stringify(result.user));
+    currentUser = result.user;
+    isAdmin = (result.user.role === 'admin');
+
+    if (saveCreds) {
+      localStorage.setItem(SAVED_CREDS_CHK_KEY, 'true');
+      localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({ username, password }));
+    } else {
+      localStorage.removeItem(SAVED_CREDS_CHK_KEY);
+      localStorage.removeItem(SAVED_CREDS_KEY);
+    }
+
+    await enterAuthenticatedApp();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = `로그인 중 오류가 발생했습니다: ${err.message}`;
+      errEl.style.display = 'block';
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔓 로그인';
+    }
+  }
+}
+
+function logoutAuthSession() {
+  if (!confirm('로그아웃 하시겠습니까?')) return;
+
+  sessionStorage.removeItem('oppaen_auth_user');
+  currentUser = null;
+  isAdmin = false;
+  appInitialized = false;
+  monthReservations = [];
+
+  if (midnightWatcherTimer) {
+    clearInterval(midnightWatcherTimer);
+    midnightWatcherTimer = null;
+  }
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
+
+  document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+  const tl = document.getElementById('dayTimelineList');
+  if (tl) tl.innerHTML = '';
+  const nl = document.getElementById('noticeList');
+  if (nl) nl.innerHTML = '';
+  const sl = document.getElementById('setlistContainer');
+  if (sl) sl.innerHTML = '';
+
+  showLoginGateScreen();
+}
 
 function updateAdminHeaderUI() {
-  const btnLogin = document.getElementById('btnAdminLogin');
-  const badgeActive = document.getElementById('adminHeaderBadge');
-  if (!btnLogin || !badgeActive) return;
+  refreshAuthStateFromStorage();
+  const btnAdminHub = document.getElementById('btnOpenAdminHub');
+  const memberBadge = document.getElementById('memberUserBadge');
 
-  if (isAdmin) {
-    btnLogin.style.display = 'none';
-    badgeActive.style.display = 'flex';
-  } else {
-    btnLogin.style.display = 'flex';
-    badgeActive.style.display = 'none';
+  if (btnAdminHub) {
+    btnAdminHub.style.display = isAdmin ? 'inline-flex' : 'none';
   }
+  if (memberBadge) {
+    if (!isAdmin && currentUser) {
+      memberBadge.style.display = 'inline-flex';
+      memberBadge.textContent = `👤 ${currentUser.display_name || currentUser.username}`;
+    } else {
+      memberBadge.style.display = 'none';
+    }
+  }
+
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? 'inline-flex' : 'none';
+  });
 }
 
 // 카카오톡 브라우저 감지 시 상단 안내 바 표출
@@ -104,38 +269,61 @@ function promptCustomDate() {
   }
 }
 
-// 앱 시작 즉시 초기화
-document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    initTimeTravelWTTBar();
-    checkKakaoBanner();
-    checkPwaInstallBanner();
-    updateAdminHeaderUI();
+async function enterAuthenticatedApp() {
+  refreshAuthStateFromStorage();
+  const gate = document.getElementById('loginGateScreen');
+  const appContainer = document.getElementById('mainAppContainer');
+  if (gate) gate.style.display = 'none';
+  if (appContainer) appContainer.style.display = 'flex';
+
+  initTimeTravelWTTBar();
+  updateAdminHeaderUI();
+
+  if (!appInitialized) {
+    appInitialized = true;
     initCalendarSwipe();
     initSleepModeTracker();
-    initMidnightResetWatcher();
-    initServerKeepAlive();
+  }
+  initMidnightResetWatcher();
+  initServerKeepAlive();
 
-    // 1. 달력 및 오늘 현황 즉시 동기 렌더링 (접속하자마자 0초 만에 달력 표출)
-    renderCalendar();
-    renderDayTimeline(selectedDate);
-    refreshTimeSlotsForDate(selectedDate);
-    renderTeamQuickChips();
+  // 1. 달력 및 오늘 현황 즉시 동기 렌더링
+  renderCalendar();
+  renderDayTimeline(selectedDate);
+  refreshTimeSlotsForDate(selectedDate);
+  renderTeamQuickChips();
 
-    // 2. 비동기 데이터 로드 및 달력 실시간 업데이트
-    await loadBookingWindow();
-    await loadMonthData(calYear, calMonth);
-    renderCalendar();
-    renderDayTimeline(selectedDate);
+  // 2. 비동기 데이터 로드 및 달력 실시간 업데이트
+  await loadBookingWindow();
+  await loadMonthData(calYear, calMonth);
+  renderCalendar();
+  renderDayTimeline(selectedDate);
 
-    // 3. 기타 탭 데이터 백그라운드 프리로드
-    loadNotices();
-    loadSetlists();
+  // 3. 기타 탭 데이터 백그라운드 프리로드
+  loadNotices();
+  loadSetlists();
+}
+
+// 앱 시작 즉시 초기화 (로그인 게이트 우선 검사)
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    checkKakaoBanner();
+    checkPwaInstallBanner();
+    refreshAuthStateFromStorage();
+
+    if (currentUser && currentUser.username) {
+      await enterAuthenticatedApp();
+    } else {
+      showLoginGateScreen();
+    }
   } catch (err) {
     console.error('초기 로딩 중 오류 발생:', err);
-    // 오류가 발생해도 달력은 무조건 표출
-    renderCalendar();
-    renderDayTimeline(selectedDate);
+    if (currentUser && currentUser.username) {
+      renderCalendar();
+      renderDayTimeline(selectedDate);
+    } else {
+      showLoginGateScreen();
+    }
   }
 });
 
@@ -241,18 +429,20 @@ async function checkAndApplyMidnightRollover() {
 function initMidnightResetWatcher() {
   if (midnightWatcherTimer) clearInterval(midnightWatcherTimer);
   midnightWatcherTimer = setInterval(() => {
-    if (!isSleeping) {
+    if (!isSleeping && currentUser) {
       checkAndApplyMidnightRollover();
     }
   }, 1000);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && currentUser) {
       checkAndApplyMidnightRollover();
     }
   });
   window.addEventListener('focus', () => {
-    checkAndApplyMidnightRollover();
+    if (currentUser) {
+      checkAndApplyMidnightRollover();
+    }
   });
 }
 
@@ -300,7 +490,7 @@ async function loadBookingWindow() {
       const noticeEl = document.getElementById('windowNoticeText');
       if (noticeEl) {
         if (isAdmin) {
-          noticeEl.innerHTML = `👑 <strong>관리자 모드</strong>: 모든 날짜 선예약 가능 &nbsp;|&nbsp; <span style="text-decoration:underline; cursor:pointer;" onclick="openSettingsModal()">[⚙️ 오픈기간 설정]</span>`;
+          noticeEl.innerHTML = `👑 <strong>관리자</strong>: 모든 날짜 선예약 가능 · <span style="text-decoration:underline; cursor:pointer; color:var(--accent-cyan);" onclick="openAdminHubModal('tab-settings')">⚙️ 기간설정</span>`;
         } else {
           const nextReset = getNextResetDateStr();
           noticeEl.textContent = `현재 ~${bookingWindow.max_allowed_date} 오픈 (다음: ${nextReset})`;
@@ -404,7 +594,7 @@ function createDayCell(dayNum, dateStr, isOtherMonth) {
   cell.appendChild(header);
 
   // 당일 예약 현황 컴팩트 인디케이터 (도트 + 건수 배지)
-  const dayRes = monthReservations.filter(r => r.res_date === dateStr);
+  const dayRes = monthReservations.filter(r => r.res_date === dateStr && r.status !== 'cancelled');
   const resContainer = document.createElement('div');
   resContainer.className = 'cal-res-container';
 
@@ -479,7 +669,7 @@ async function goToToday() {
 // 4. 선택된 날짜 상세 타임라인 렌더링
 function renderDayTimeline(dateStr) {
   const info = formatDateDisplay(dateStr);
-  const dayRes = monthReservations.filter(r => r.res_date === dateStr);
+  const dayRes = monthReservations.filter(r => r.res_date === dateStr && r.status !== 'cancelled');
   dayRes.sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   document.getElementById('selectedDateTitle').textContent = `📅 ${info.full} 합주 현황${dayRes.length > 0 ? ` (총 ${dayRes.length}건)` : ''}`;
@@ -599,7 +789,7 @@ function refreshTimeSlotsForDate(targetDate) {
     if (currentDayBookings.length === 0) {
       alertBox.style.background = 'rgba(16, 185, 129, 0.1)';
       alertBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-      alertBox.innerHTML = '<span style="color:var(--success); font-weight:800;">✨ 해당 날짜는 모든 시간대(06:00 ~ 24:00) 예약 가능합니다.</span>';
+      alertBox.innerHTML = '<span style="color:var(--success); font-weight:800;">✨ 전 시간대(06:00 ~ 24:00) 예약 가능</span>';
     } else {
       alertBox.style.background = 'rgba(239, 68, 68, 0.12)';
       alertBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
@@ -826,23 +1016,32 @@ function onBandTeamChange() {
   }
 }
 
-// 팀명 빠른 선택 메뉴 관리자 수정 모달
+function focusDateInput() {
+  const el = document.getElementById('bookDate');
+  if (!el) return;
+  try {
+    if (typeof el.showPicker === 'function') {
+      el.showPicker();
+    } else {
+      el.focus();
+    }
+  } catch (e) {
+    el.focus();
+  }
+}
+
+// 팀명 빠른 선택 메뉴 관리자 수정 (통합 관리자 센터 연결)
 function openTeamChipsModal() {
-  const inputTeams = document.getElementById('inputQuickTeams');
-  const inputPin = document.getElementById('inputTeamChipsPin');
-  if (inputTeams) {
-    inputTeams.value = bookingWindow.quick_teams || '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습';
-  }
-  if (inputPin) {
-    inputPin.value = isAdmin ? (adminPin || '9999') : '';
-  }
-  openModal('teamChipsModal');
+  openAdminHubModal('tab-teams');
 }
 
 async function submitTeamChips(e) {
   e.preventDefault();
+  if (!isAdmin) {
+    alert('관리자 계정으로만 변경할 수 있습니다.');
+    return;
+  }
   const teamsVal = document.getElementById('inputQuickTeams').value.trim();
-  const pinVal = document.getElementById('inputTeamChipsPin').value.trim();
 
   if (!teamsVal) {
     alert('최소 1개 이상의 팀명을 입력해 주세요.');
@@ -854,15 +1053,14 @@ async function submitTeamChips(e) {
     if (window.ObandDB) {
       result = await window.ObandDB.saveSettings({
         quick_teams: teamsVal,
-        pin: pinVal
+        isAdminBypass: true
       });
     } else {
       const res = await fetch(`${API_BASE}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quick_teams: teamsVal,
-          pin: pinVal
+          quick_teams: teamsVal
         })
       });
       result = await res.json();
@@ -874,7 +1072,7 @@ async function submitTeamChips(e) {
 
     bookingWindow.quick_teams = teamsVal;
     renderTeamOptions();
-    closeModal('teamChipsModal');
+    closeModal('adminHubModal');
     alert('🎉 팀명 메뉴가 성공적으로 변경되었습니다!');
   } catch (err) {
     alert(`오류: ${err.message}`);
@@ -893,10 +1091,17 @@ function openBookingModalForSelectedDate() {
   if (editIdEl) editIdEl.value = '';
   if (titleEl) titleEl.textContent = '🎸 합주실 예약 등록';
   if (noticeEl) noticeEl.style.display = 'none';
-  if (pinLabelEl) pinLabelEl.textContent = '🔒 본인 확인 비밀번호 (PIN 숫자 4자리)';
+  if (pinLabelEl) {
+    pinLabelEl.textContent = isAdmin
+      ? '👑 관리자 예약 비밀번호 (생략 시 0000 자동 처리)'
+      : '🔒 본인 확인 비밀번호 (PIN 숫자 4자리)';
+  }
   if (pinInputEl) {
-    pinInputEl.placeholder = '수정·취소 시 사용할 숫자 4자리';
-    pinInputEl.value = isAdmin ? (adminPin || '9999') : '';
+    pinInputEl.required = !isAdmin;
+    pinInputEl.value = '';
+    pinInputEl.placeholder = isAdmin
+      ? '생략 가능 (필요 시 4자리 숫자 입력)'
+      : '수정·취소 시 사용할 숫자 4자리';
   }
   if (submitBtnEl) submitBtnEl.textContent = '예약 완료하기';
 
@@ -904,6 +1109,7 @@ function openBookingModalForSelectedDate() {
   document.getElementById('bookMemberName').value = '';
   
   renderTeamOptions();
+  updateAdminHeaderUI();
   refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
 }
@@ -924,11 +1130,20 @@ function openEditBookingModal(id) {
 
   if (editIdEl) editIdEl.value = String(r.id);
   if (titleEl) titleEl.textContent = '✏️ 합주실 예약 내용 수정';
-  if (noticeEl) noticeEl.style.display = 'block';
-  if (pinLabelEl) pinLabelEl.textContent = '🔑 예약 시 등록한 4자리 비밀번호(PIN) 입력';
+  if (noticeEl) {
+    noticeEl.style.display = isAdmin ? 'none' : 'block';
+  }
+  if (pinLabelEl) {
+    pinLabelEl.textContent = isAdmin
+      ? '👑 관리자 권한 수정 (PIN 생략 가능)'
+      : '🔑 예약 시 등록한 4자리 비밀번호(PIN) 입력';
+  }
   if (pinInputEl) {
-    pinInputEl.placeholder = '예약 시 설정한 숫자 4자리 입력';
-    pinInputEl.value = isAdmin ? (adminPin || '9999') : '';
+    pinInputEl.required = !isAdmin;
+    pinInputEl.value = '';
+    pinInputEl.placeholder = isAdmin
+      ? '관리자 로그인 상태 (PIN 없이 바로 수정 가능)'
+      : '예약 시 설정한 숫자 4자리 입력';
   }
   if (submitBtnEl) submitBtnEl.textContent = '✏️ 예약 수정 완료하기';
 
@@ -936,6 +1151,7 @@ function openEditBookingModal(id) {
   document.getElementById('bookMemberName').value = r.member_name || '';
 
   renderTeamOptions();
+  updateAdminHeaderUI();
   setTeamName(r.band_team || '전체합주');
   refreshTimeSlotsForDate(r.res_date);
 
@@ -960,6 +1176,10 @@ async function submitBooking(e) {
   const editIdEl = document.getElementById('editBookingId');
   const editId = editIdEl ? editIdEl.value.trim() : '';
   const isEditMode = Boolean(editId);
+  let pinVal = document.getElementById('bookPin').value.trim();
+  if (isAdmin && !pinVal) {
+    pinVal = '0000';
+  }
 
   const body = {
     res_date: document.getElementById('bookDate').value,
@@ -969,7 +1189,8 @@ async function submitBooking(e) {
     band_team: selectedTeam === '__custom__' ? '전체합주' : selectedTeam,
     part: '합주',
     purpose: '',
-    pin: document.getElementById('bookPin').value.trim()
+    pin: pinVal,
+    isAdminBypass: isAdmin
   };
 
   if (isEditMode) {
@@ -1077,24 +1298,173 @@ async function submitCancel(e) {
   }
 }
 
-// 8. 관리자 예약 조건 설정 모달
+// 8. 통합 관리자 센터 & 예약 조건 설정
 function openSettingsModal() {
-  document.getElementById('cfgOpenWeeks').value = String(bookingWindow.open_weeks || 2);
-  document.getElementById('cfgResetDay').value = String(bookingWindow.reset_day || 0);
-  const kakaoInput = document.getElementById('cfgKakaoJsKey');
-  if (kakaoInput) kakaoInput.value = bookingWindow.kakao_js_key || '';
-  document.getElementById('cfgAdminPin').value = isAdmin ? (adminPin || '9999') : '';
-  openModal('settingsModal');
+  openAdminHubModal('tab-settings');
+}
+
+function openAdminHubModal(initialTab = 'tab-accounts') {
+  if (!isAdmin) {
+    alert('관리자 계정으로 로그인해야 접근할 수 있습니다.');
+    return;
+  }
+  switchAdminHubTab(initialTab);
+  openModal('adminHubModal');
+}
+
+function switchAdminHubTab(tabName) {
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.adminTab === tabName);
+  });
+  document.querySelectorAll('.admin-tab-pane').forEach(pane => {
+    pane.classList.toggle('active', pane.id === `adminTab-${tabName}`);
+  });
+
+  if (tabName === 'tab-accounts') {
+    loadAdminAccounts();
+  } else if (tabName === 'tab-settings') {
+    const openEl = document.getElementById('cfgOpenWeeks');
+    const resetEl = document.getElementById('cfgResetDay');
+    const kakaoInput = document.getElementById('cfgKakaoJsKey');
+    if (openEl) openEl.value = String(bookingWindow.open_weeks || 2);
+    if (resetEl) resetEl.value = String(bookingWindow.reset_day || 0);
+    if (kakaoInput) kakaoInput.value = bookingWindow.kakao_js_key || '';
+  } else if (tabName === 'tab-teams') {
+    const inputTeams = document.getElementById('inputQuickTeams');
+    if (inputTeams) {
+      inputTeams.value = bookingWindow.quick_teams || '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습';
+    }
+  }
+}
+
+async function loadAdminAccounts() {
+  const listEl = document.getElementById('adminAccountList');
+  if (!listEl || !window.ObandDB) return;
+
+  listEl.innerHTML = '<div class="empty-text" style="padding:12px 0;">계정 목록을 불러오는 중...</div>';
+  try {
+    const res = await window.ObandDB.getUsers();
+    if (!res || !res.success) {
+      listEl.innerHTML = `<div class="empty-text" style="color:#f87171;">${escapeHtml((res && res.message) || '목록 조회 실패')}</div>`;
+      return;
+    }
+    const users = res.users || [];
+    if (users.length === 0) {
+      listEl.innerHTML = '<div class="empty-text">등록된 계정이 없습니다.</div>';
+      return;
+    }
+
+    listEl.innerHTML = users.map(u => {
+      const isSelf = Boolean(currentUser && currentUser.username === u.username);
+      const roleLabel = u.role === 'admin' ? '👑 관리자' : '🎸 부원 공용';
+      const roleClass = u.role === 'admin' ? 'role-admin' : 'role-member';
+      return `
+        <div class="admin-account-card">
+          <div class="admin-account-info">
+            <div class="admin-account-id-row">
+              <span class="admin-account-username">${escapeHtml(u.username)}</span>
+              <span class="admin-account-role-badge ${roleClass}">${roleLabel}</span>
+              ${isSelf ? '<span style="font-size:10px; color:#38bdf8; font-weight:800;">(접속중)</span>' : ''}
+            </div>
+            <div class="admin-account-sub">${escapeHtml(u.display_name || '')}${u.created_at ? ' · ' + escapeHtml(u.created_at) : ''}</div>
+          </div>
+          <div class="admin-account-actions">
+            <button type="button" class="btn-acct-pw" onclick="resetAccountPassword(${u.id}, '${escapeHtml(u.username)}')">🔑 비번</button>
+            ${!isSelf ? `<button type="button" class="btn-acct-del" onclick="deleteAccount(${u.id}, '${escapeHtml(u.username)}')">🗑️ 삭제</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    listEl.innerHTML = `<div class="empty-text" style="color:#f87171;">오류: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function submitCreateAccount(e) {
+  e.preventDefault();
+  if (!isAdmin || !window.ObandDB) {
+    alert('관리자 계정으로만 계정을 생성할 수 있습니다.');
+    return;
+  }
+
+  const roleEl = document.getElementById('newAccountRole');
+  const displayEl = document.getElementById('newAccountDisplayName');
+  const userEl = document.getElementById('newAccountUsername');
+  const pwEl = document.getElementById('newAccountPassword');
+
+  const payload = {
+    role: roleEl ? roleEl.value : 'member',
+    display_name: displayEl ? displayEl.value.trim() : '',
+    username: userEl ? userEl.value.trim() : '',
+    password: pwEl ? pwEl.value : ''
+  };
+
+  try {
+    const res = await window.ObandDB.createUser(payload);
+    if (!res || !res.success) {
+      alert((res && res.message) || '계정 생성 실패');
+      return;
+    }
+    alert(res.message);
+    if (displayEl) displayEl.value = '';
+    if (userEl) userEl.value = '';
+    if (pwEl) pwEl.value = '';
+    await loadAdminAccounts();
+  } catch (err) {
+    alert(`계정 생성 오류: ${err.message}`);
+  }
+}
+
+async function resetAccountPassword(userId, username) {
+  if (!isAdmin || !window.ObandDB) return;
+  const newPw = prompt(`[${username}] 계정의 새 비밀번호를 입력하세요 (4자 이상):`);
+  if (newPw === null) return;
+  if (newPw.length < 4) {
+    alert('비밀번호는 최소 4자 이상 입력해 주세요.');
+    return;
+  }
+
+  try {
+    const res = await window.ObandDB.updateUserPassword(userId, newPw);
+    if (!res || !res.success) {
+      alert((res && res.message) || '비밀번호 변경 실패');
+      return;
+    }
+    alert(`✅ [${username}] 계정의 비밀번호가 변경되었습니다.`);
+  } catch (err) {
+    alert(`오류: ${err.message}`);
+  }
+}
+
+async function deleteAccount(userId, username) {
+  if (!isAdmin || !window.ObandDB) return;
+  if (!confirm(`계정 [${username}]을(를) 정말 삭제하시겠습니까?\n삭제 시 해당 아이디로는 더 이상 로그인할 수 없습니다.`)) return;
+
+  try {
+    const res = await window.ObandDB.deleteUser(userId);
+    if (!res || !res.success) {
+      alert((res && res.message) || '계정 삭제 실패');
+      return;
+    }
+    alert(res.message);
+    await loadAdminAccounts();
+  } catch (err) {
+    alert(`오류: ${err.message}`);
+  }
 }
 
 async function submitSettings(e) {
   e.preventDefault();
+  if (!isAdmin) {
+    alert('관리자 계정으로만 설정을 변경할 수 있습니다.');
+    return;
+  }
   const kakaoInput = document.getElementById('cfgKakaoJsKey');
   const body = {
     open_weeks: Number(document.getElementById('cfgOpenWeeks').value),
     reset_day: Number(document.getElementById('cfgResetDay').value),
     kakao_js_key: kakaoInput ? kakaoInput.value.trim() : '',
-    pin: document.getElementById('cfgAdminPin').value.trim()
+    isAdminBypass: true
   };
 
   try {
@@ -1114,7 +1484,7 @@ async function submitSettings(e) {
       return;
     }
     alert('⚙️ 관리자 예약 기간 조건이 저장되었습니다!');
-    closeModal('settingsModal');
+    closeModal('adminHubModal');
 
     await loadBookingWindow();
     renderCalendar();
@@ -1212,7 +1582,6 @@ async function deleteNotice(id) {
   let pin = '';
   if (isAdmin) {
     if (!confirm('관리자 권한으로 이 공지사항을 삭제하시겠습니까?')) return;
-    pin = adminPin;
   } else {
     pin = prompt('공지 작성 시 입력했던 4자리 비밀번호(PIN)를 입력하세요:');
     if (!pin) return;
@@ -1221,7 +1590,7 @@ async function deleteNotice(id) {
   try {
     let result;
     if (window.ObandDB) {
-      result = await window.ObandDB.deleteNotice(id, pin);
+      result = await window.ObandDB.deleteNotice(id, pin, isAdmin);
     } else {
       const res = await fetch(`${API_BASE}/api/notices/delete`, {
         method: 'POST',
@@ -1242,59 +1611,10 @@ async function deleteNotice(id) {
 }
 
 // -------------------------------------------------------------
-// 관리자 전용 제어 함수들 (Admin Mode Functions)
+// 관리자 전용 제어 함수 (강제 취소 & 연습곡 삭제)
 // -------------------------------------------------------------
-function openAdminLoginModal() {
-  document.getElementById('adminInputPin').value = '';
-  openModal('adminLoginModal');
-}
-
-async function submitAdminLogin(e) {
-  e.preventDefault();
-  const pin = document.getElementById('adminInputPin').value.trim();
-  try {
-    let data;
-    if (window.ObandDB) {
-      data = await window.ObandDB.verifyAdmin(pin);
-    } else {
-      const res = await fetch(`${API_BASE}/api/admin/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pin })
-      });
-      data = await res.json();
-    }
-    if (!data.success) {
-      alert(data.message || '관리자 비밀번호가 일치하지 않습니다.');
-      return;
-    }
-    adminPin = pin;
-    isAdmin = true;
-    sessionStorage.setItem('oppaen_admin_pin', pin);
-    updateAdminHeaderUI();
-    closeModal('adminLoginModal');
-    alert('👑 관리자 모드가 활성화되었습니다!\n합주 강제 취소 및 전체 날짜 선예약/기간 설정 권한이 부여되었습니다.');
-    await loadBookingWindow();
-    renderCalendar();
-    renderDayTimeline(selectedDate);
-  } catch (err) {
-    alert(`오류: ${err.message}`);
-  }
-}
-
-async function logoutAdmin() {
-  if (!confirm('관리자 모드를 해제하시겠습니까?')) return;
-  sessionStorage.removeItem('oppaen_admin_pin');
-  adminPin = '';
-  isAdmin = false;
-  updateAdminHeaderUI();
-  alert('관리자 모드가 해제되었습니다.');
-  await loadBookingWindow();
-  renderCalendar();
-  renderDayTimeline(selectedDate);
-}
-
 async function adminForceCancel(id, timeRange, name) {
+  if (!isAdmin) return;
   if (!confirm(`[관리자 권한 강제 취소]\n\n${name}님의 예약(${timeRange})을 강제 취소하시겠습니까?\n취소 시 해당 타임슬롯이 즉시 반환됩니다.`)) {
     return;
   }
@@ -1302,12 +1622,12 @@ async function adminForceCancel(id, timeRange, name) {
   try {
     let result;
     if (window.ObandDB) {
-      result = await window.ObandDB.cancelBooking(id, adminPin);
+      result = await window.ObandDB.cancelBooking(id, '', true);
     } else {
       const res = await fetch(`${API_BASE}/api/reservations/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: Number(id), pin: adminPin })
+        body: JSON.stringify({ id: Number(id) })
       });
       result = await res.json();
     }
@@ -1358,11 +1678,28 @@ async function loadSetlists() {
         <div class="song-actions">
           ${s.youtube_url ? `<a href="${s.youtube_url}" target="_blank" class="btn-link">▶ 영상</a>` : ''}
           ${s.sheet_url ? `<a href="${s.sheet_url}" target="_blank" class="btn-link" style="color:var(--accent-cyan); border-color:rgba(0,223,216,0.3); background:rgba(0,223,216,0.1);">📄 악보</a>` : ''}
+          ${isAdmin ? `<button type="button" class="btn-setlist-del" onclick="deleteSetlistItem(${s.id}, '${escapeHtml(s.title)}')">🗑️ 삭제</button>` : ''}
         </div>
       </div>
     `).join('');
   } catch (err) {
     console.error('곡 로드 실패:', err);
+  }
+}
+
+async function deleteSetlistItem(id, title) {
+  if (!isAdmin || !window.ObandDB) return;
+  if (!confirm(`[관리자 권한] 연습곡 "${title}"을(를) 삭제하시겠습니까?`)) return;
+  try {
+    const res = await window.ObandDB.deleteSetlist(id);
+    if (!res || !res.success) {
+      alert((res && res.message) || '삭제 실패');
+      return;
+    }
+    showToast('🗑️ 연습곡이 삭제되었습니다.');
+    await loadSetlists();
+  } catch (err) {
+    alert(`오류: ${err.message}`);
   }
 }
 
@@ -1575,8 +1912,8 @@ function shareReservationKakao(info) {
   }
 
   const shareUrl = window.location.origin && window.location.origin.startsWith('http')
-    ? window.location.origin
-    : 'https://o-band.onrender.com';
+    ? (window.location.origin + window.location.pathname)
+    : 'https://syoul8905-oband.github.io/O_BAND/';
 
   const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`;
 
@@ -1662,12 +1999,13 @@ let sleepTimer = null;
 let isSleeping = false;
 
 function resetSleepTimer() {
-  if (isSleeping) return;
+  if (isSleeping || !currentUser) return;
   if (sleepTimer) clearTimeout(sleepTimer);
   sleepTimer = setTimeout(enterSleepMode, SLEEP_TIMEOUT_MS);
 }
 
 function enterSleepMode() {
+  if (!currentUser) return;
   isSleeping = true;
   if (keepAliveInterval) {
     clearInterval(keepAliveInterval);
@@ -1739,9 +2077,9 @@ if ('serviceWorker' in navigator) {
       regs.forEach(reg => reg.unregister());
     }).catch(() => {});
 
-    if (window.location.search.indexOf('action=safari_guide') !== -1) {
+    if (currentUser && window.location.search.indexOf('action=safari_guide') !== -1) {
       setTimeout(() => executeSafariShortcut(), 300);
-    } else if (window.location.search.indexOf('action=chrome_shortcut') !== -1) {
+    } else if (currentUser && window.location.search.indexOf('action=chrome_shortcut') !== -1) {
       setTimeout(() => openModal('iosProfileCompleteModal'), 300);
     }
   });

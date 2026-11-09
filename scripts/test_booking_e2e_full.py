@@ -29,7 +29,16 @@ chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=chrome_path, headless=True)
-    page = browser.new_page()
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    context.add_init_script("""
+        window.sessionStorage.setItem('oppaen_auth_user', JSON.stringify({
+            id: 901,
+            username: 'e2e_member',
+            role: 'member',
+            display_name: '부원 공용'
+        }));
+    """)
+    page = context.new_page()
 
     # Automatically accept dialogs/alerts
     page.on("dialog", lambda dialog: dialog.accept())
@@ -71,7 +80,7 @@ with sync_playwright() as p:
 
     # 5. Test Cancel booking
     print("\n5. Testing Cancel booking...")
-    cancel_btn = page.locator("#dayTimelineList button.timeline-cancel-btn:has-text('취소')").last
+    cancel_btn = page.locator("#dayTimelineList button.btn-cancel-res:has-text('취소')").last
     cancel_btn.click()
     time.sleep(1)
 

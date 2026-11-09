@@ -326,10 +326,18 @@ async function runTestSuite() {
         }
       });
 
-      // Inject deterministic mock data before page load
+      // Inject deterministic mock data & authenticated member session before page load
       await page.addInitScript((fixtures) => {
+        window.sessionStorage.setItem('oppaen_auth_user', JSON.stringify({
+          id: 901,
+          username: 'e2e_member',
+          role: 'member',
+          display_name: '부원 공용'
+        }));
+
         // Complete Mock ObandDB matching interface contract
         const mockObandDB = {
+          login: async () => ({ success: true, user: { id: 901, username: 'e2e_member', role: 'member', display_name: '부원 공용' } }),
           getBookingWindow: async () => ({
             success: true,
             window: fixtures.bookingWindow
@@ -339,12 +347,13 @@ async function runTestSuite() {
             reservations: fixtures.reservations
           }),
           getNotices: async () => ({ success: true, notices: [] }),
-          getMembers: async () => ({ success: true, members: [] }),
           getSetlists: async () => ({ success: true, setlists: [] }),
           saveSetlist: async () => ({ success: true }),
-          saveReservation: async () => ({ success: true }),
-          updateReservation: async () => ({ success: true }),
-          cancelReservation: async () => ({ success: true })
+          saveBooking: async () => ({ success: true }),
+          cancelBooking: async () => ({ success: true }),
+          saveNotice: async () => ({ success: true }),
+          deleteNotice: async () => ({ success: true }),
+          saveSettings: async () => ({ success: true })
         };
 
         Object.defineProperty(window, 'ObandDB', {

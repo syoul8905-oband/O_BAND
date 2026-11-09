@@ -254,16 +254,22 @@ async function runEmpiricalStressSuite() {
     });
 
     await page.addInitScript((fix) => {
+      window.sessionStorage.setItem('oppaen_auth_user', JSON.stringify({
+        id: 901,
+        username: 'e2e_member',
+        role: 'member',
+        display_name: '부원 공용'
+      }));
+
       const mockObandDB = {
+        login: async () => ({ success: true, user: { id: 901, username: 'e2e_member', role: 'member', display_name: '부원 공용' } }),
         getBookingWindow: async () => ({ success: true, window: fix.bookingWindow }),
         getMonthReservations: async () => ({ success: true, reservations: fix.reservations }),
         getNotices: async () => ({ success: true, notices: [] }),
-        getMembers: async () => ({ success: true, members: [] }),
         getSetlists: async () => ({ success: true, setlists: [] }),
         saveSetlist: async () => ({ success: true }),
-        saveReservation: async () => ({ success: true }),
-        updateReservation: async () => ({ success: true }),
-        cancelReservation: async () => ({ success: true })
+        saveBooking: async () => ({ success: true }),
+        cancelBooking: async () => ({ success: true })
       };
 
       Object.defineProperty(window, 'ObandDB', {

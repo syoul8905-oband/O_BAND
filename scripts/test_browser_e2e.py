@@ -29,7 +29,16 @@ chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=chrome_path, headless=True)
-    page = browser.new_page()
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    context.add_init_script("""
+        window.sessionStorage.setItem('oppaen_auth_user', JSON.stringify({
+            id: 901,
+            username: 'e2e_member',
+            role: 'member',
+            display_name: '부원 공용'
+        }));
+    """)
+    page = context.new_page()
 
     page.goto(f"http://localhost:{PORT}")
     page.wait_for_load_state("networkidle")

@@ -1,5 +1,6 @@
 /* 오늘부터 밴드부 (오뺀) - 모바일 전용 프리미엄 테마 */
 :root {
+  color-scheme: dark;
   --bg-primary: #0f1117;
   --bg-secondary: #1a1d27;
   --bg-card: #222634;
@@ -32,15 +33,132 @@ html, body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background-color: var(--bg-primary);
   color: var(--text-main);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: flex-start;
+}
+
+/* [보안 게이트] 외부 접속 차단용 로그인 화면 */
+.login-gate-screen {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: radial-gradient(circle at top right, rgba(121, 40, 202, 0.22), transparent 55%), var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 18px;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
+}
+
+.login-gate-card {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid rgba(192, 132, 252, 0.28);
+  border-radius: 20px;
+  padding: 26px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.48);
+}
+
+.login-gate-logo {
+  font-size: 38px;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.login-gate-title {
+  font-size: 21px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--text-main);
+  letter-spacing: -0.4px;
+}
+
+.login-gate-subtitle {
+  font-size: 12.5px;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 22px;
+}
+
+.pw-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.pw-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 17px;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--text-sub);
+  line-height: 1;
+}
+
+.login-save-row {
+  margin: 2px 0 14px;
+  display: flex;
+  align-items: center;
+}
+
+.login-save-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-sub);
+  cursor: pointer;
+  user-select: none;
+}
+
+.login-save-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-purple);
+  cursor: pointer;
+}
+
+.login-gate-error {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.login-gate-footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.55;
+  word-break: keep-all;
 }
 
 /* 모바일 뷰포트 컨테이너 (스마트폰 최적화) */
@@ -48,6 +166,7 @@ body {
   width: 100%;
   max-width: 480px;
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--bg-secondary);
   display: flex;
   flex-direction: column;
@@ -66,30 +185,34 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-light);
-  padding: 12px 16px;
+  padding: 10px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
 }
 
 .brand-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .brand-logo {
-  font-size: 22px;
+  font-size: 20px;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 2px 8px rgba(255, 0, 128, 0.3));
+  flex-shrink: 0;
 }
 
 .brand-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.4px;
+  white-space: nowrap;
 }
 
 .brand-badge {
@@ -97,23 +220,71 @@ body {
   background: rgba(121, 40, 202, 0.2);
   color: #c084fc;
   border: 1px solid rgba(192, 132, 252, 0.3);
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 6px;
   font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .header-status {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 10.5px;
   color: var(--success);
   font-weight: 600;
   background: rgba(16, 185, 129, 0.1);
-  padding: 4px 8px;
+  padding: 4px 7px;
   border-radius: 20px;
   border: 1px solid rgba(16, 185, 129, 0.25);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 390px) {
+  .app-header {
+    padding: 9px 10px;
+    gap: 4px;
+  }
+  .brand-wrapper {
+    gap: 4px;
+  }
+  .brand-title {
+    font-size: 14px;
+  }
+  .brand-logo {
+    font-size: 17px;
+  }
+  .brand-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  .header-actions-group {
+    gap: 4px;
+  }
+  .btn-admin-header {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .member-user-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .btn-header-logout {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .header-status {
+    font-size: 9.5px;
+    padding: 3px 5px;
+    gap: 3px;
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+  }
 }
 
 .status-dot {
@@ -494,6 +665,35 @@ body {
   }
   .calendar-days-grid {
     gap: 2px;
+  }
+}
+
+/* 320px 초소형 뷰포트 대응: 안내 배너 1줄 컴팩트 유지 및 헤더 충돌 방지 */
+@media (max-width: 350px) {
+  .calendar-window-info {
+    padding: 5px 7px;
+    gap: 4px;
+    font-size: 9.5px;
+    letter-spacing: -0.35px;
+    flex-wrap: nowrap;
+  }
+  .window-badge {
+    padding: 2px 5px;
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+  #windowNoticeText {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brand-title {
+    font-size: 13px;
+  }
+  .brand-badge {
+    display: none;
   }
 }
 
@@ -1160,12 +1360,13 @@ body {
 .modal-overlay {
   display: none;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 200;
   justify-content: center;
   align-items: flex-end;
@@ -1181,9 +1382,12 @@ body {
   background: var(--bg-card);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
-  padding: 20px 20px calc(24px + var(--safe-bottom));
-  max-height: 85vh;
+  padding: 16px 16px calc(20px + var(--safe-bottom));
+  max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-light);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1198,8 +1402,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border-light);
 }
 
@@ -1208,18 +1412,18 @@ body {
   font-weight: 800;
 }
 
-.sheet-close-btn {
+.sheet-close-btn, .sheet-close {
   background: none;
   border: none;
   color: var(--text-dim);
   font-size: 20px;
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 6px;
 }
 
-/* 폼 스타일 */
+/* 폼 스타일 (iOS Safari / WebKit 호환성 100% 강제) */
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .form-label {
@@ -1227,19 +1431,112 @@ body {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-sub);
-  margin-bottom: 6px;
+  margin-bottom: 5px;
+  line-height: 18px;
 }
 
 .form-input, .form-select, .form-textarea {
   width: 100%;
-  background: var(--bg-secondary);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   color: var(--text-main);
-  font-size: 14px;
+  font-size: 16px; /* iOS Safari 입력 포커스 시 자동 줌인 방지용 16px */
+  line-height: 1.35;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: dark;
   transition: border-color 0.2s;
+}
+
+.form-input, .form-select {
+  height: 44px;
+  min-height: 44px;
+}
+
+.form-select {
+  padding-right: 34px;
+  background-color: var(--bg-secondary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  cursor: pointer;
+}
+
+.form-select option {
+  background-color: #1a1d27;
+  color: #f8fafc;
+}
+
+/* iOS Safari & Chrome 크로스브라우저 날짜 입력 박스 통일 */
+.date-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.form-date-input {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 38px 0 12px;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: dark;
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+}
+
+.form-date-input::-webkit-date-and-time-value {
+  text-align: left;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.form-date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.date-input-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+  opacity: 0.85;
+  z-index: 1;
+}
+
+.modal-slots-alert {
+  margin-bottom: 10px;
+  font-size: 12px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-light);
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
@@ -1250,10 +1547,12 @@ body {
 .form-row {
   display: flex;
   gap: 10px;
+  width: 100%;
 }
 
 .form-row .form-group {
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
 .btn-submit {
@@ -1262,12 +1561,12 @@ body {
   color: white;
   border: none;
   border-radius: 12px;
-  padding: 14px;
+  padding: 13px 14px;
   font-size: 15px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: var(--accent-glow);
-  margin-top: 8px;
+  margin-top: 6px;
   transition: transform 0.1s;
 }
 
@@ -1296,32 +1595,237 @@ body {
 
 
 /* -------------------------------------------------------------
-   관리자 모드 (Admin Mode) 전용 스타일
+   관리자 모드 & 헤더 인증 UI 스타일
 ------------------------------------------------------------- */
 .header-actions-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .btn-admin-header {
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(168, 85, 247, 0.2) 100%);
+  border: 1px solid #f59e0b;
   color: #fbbf24;
   font-size: 11px;
   font-weight: 800;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 20px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 
 .btn-admin-header:active {
   transform: scale(0.96);
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.32);
+}
+
+.member-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #c084fc;
+  background: rgba(121, 40, 202, 0.16);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  padding: 4px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-header-logout {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2e8f0;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 4px 7px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.btn-header-logout:active {
+  transform: scale(0.95);
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+/* 통합 관리자 센터 탭 & 계정 카드 */
+.admin-hub-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+
+.admin-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.admin-tab-btn.active {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 2px 10px rgba(121, 40, 202, 0.35);
+}
+
+.admin-tab-pane {
+  display: none;
+}
+
+.admin-tab-pane.active {
+  display: block;
+}
+
+.admin-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.admin-account-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-account-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-account-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-account-username {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.admin-account-role-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.admin-account-role-badge.role-admin {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.admin-account-role-badge.role-member {
+  background: rgba(0, 223, 216, 0.15);
+  color: #00dfd8;
+  border: 1px solid rgba(0, 223, 216, 0.35);
+}
+
+.admin-account-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.admin-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.btn-acct-pw {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.btn-acct-del {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.btn-setlist-del {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.quick-chip-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-chip {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-sub);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.quick-chip:active {
+  background: rgba(121, 40, 202, 0.25);
+  border-color: #c084fc;
+  color: #fff;
 }
 
 .admin-header-active {

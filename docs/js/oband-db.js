@@ -2,8 +2,9 @@
  * 오늘부터 밴드부 (오뺀) - Supabase 데이터 계층 모듈 (oband-db.js)
  * 
  * - Render의 15분 절전모드(Cold Start / 30~50초 지연) 원천 차단
- * - Vercel Edge CDN + Supabase BaaS 직결로 0.05초(50ms) 초고속 데이터 로딩
+ * - GitHub Pages Edge CDN + Supabase BaaS 직결로 0.05초(50ms) 초고속 데이터 로딩
  * - 네이버 계정(배송스케줄 관리 DB)과 100% 분리된 오뺀 전용 데이터베이스
+ * - 외부 차단 로그인 게이트 + 통합 관리자 계정 및 계정 생성/관리 지원
  */
 
 (function(window) {
@@ -20,6 +21,70 @@
     'Content-Type': 'application/json',
     'Prefer': 'return=representation'
   };
+
+  // 순수 JS 동기 SHA-256 해시 (HTTP/HTTPS/file 모두 동일 동작)
+  function sha256(ascii) {
+    function rightRotate(value, amount) { return (value >>> amount) | (value << (32 - amount)); }
+    var mathPow = Math.pow, maxWord = mathPow(2, 32), lengthProperty = 'length', i, j, result = '';
+    var words = [], asciiBitLength = ascii[lengthProperty] * 8;
+    var hash = sha256.h = sha256.h || [], k = sha256.k = sha256.k || [], primeCounter = k[lengthProperty];
+    var isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while (ascii[lengthProperty] % 64 - 56) ascii += '\x00';
+    for (i = 0; i < ascii[lengthProperty]; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return '';
+      words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    }
+    words[words[lengthProperty]] = ((asciiBitLength / maxWord) | 0);
+    words[words[lengthProperty]] = asciiBitLength;
+    for (j = 0; j < words[lengthProperty];) {
+      var w = words.slice(j, j += 16), oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+        var temp1 = hash[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) + ((e & hash[5]) ^ ((~e) & hash[6])) + k[i] +
+          (w[i] = (i < 16) ? w[i] : (w[i - 16] + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) | 0);
+        var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (hash[i] >> (j * 8)) & 255;
+        result += ((b < 16) ? 0 : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  function hashPassword(rawPassword) {
+    const utf8Str = unescape(encodeURIComponent('OBAND_SALT_2026:' + String(rawPassword || '')));
+    return sha256(utf8Str);
+  }
+
+  function getSessionUser() {
+    try {
+      const raw = window.sessionStorage.getItem('oppaen_auth_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isAdminSession() {
+    const user = getSessionUser();
+    return Boolean(user && user.role === 'admin');
+  }
 
   function getKstDate() {
     return new Date(Date.now() + 9 * 3600 * 1000);
@@ -71,7 +136,172 @@
   }
 
   const ObandDB = {
-    cachedAdminPin: '9999',
+    // 0. 초기 관리자 계정 시드 확인 (admin / 123456789)
+    async ensureDefaultAdmin() {
+      const existing = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_USERS&limit=1');
+      if (!existing || existing.length === 0) {
+        const adminPayload = {
+          source_sheet: 'OBAND_USERS',
+          customer_name: 'admin',
+          contact: hashPassword('123456789'),
+          category: 'admin',
+          driver_name: '총괄 관리자',
+          status: 'active',
+          memo_special: getTodayString()
+        };
+        await apiFetch('delivery_schedules', {
+          method: 'POST',
+          body: JSON.stringify(adminPayload)
+        });
+      }
+    },
+
+    // 0-1. 로그인 인증 (외부 차단 게이트)
+    async login(username, password) {
+      const cleanId = String(username || '').trim().toLowerCase();
+      const rawPw = String(password || '');
+
+      if (!cleanId || !rawPw) {
+        return { success: false, message: '아이디와 비밀번호를 모두 입력해 주세요.' };
+      }
+
+      await ObandDB.ensureDefaultAdmin();
+
+      const rows = await apiFetch(
+        `delivery_schedules?source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(cleanId)}&status=eq.active`
+      );
+
+      if (!rows || rows.length === 0) {
+        return { success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' };
+      }
+
+      const account = rows[0];
+      const inputHash = hashPassword(rawPw);
+      if (account.contact !== inputHash) {
+        return { success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' };
+      }
+
+      return {
+        success: true,
+        user: {
+          id: account.id,
+          username: account.customer_name,
+          role: account.category === 'admin' ? 'admin' : 'member',
+          display_name: account.driver_name || account.customer_name
+        }
+      };
+    },
+
+    // 0-2. 계정 목록 조회 (관리자 전용)
+    async getUsers() {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 권한이 필요합니다.' };
+      }
+      const rows = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_USERS&order=category.asc,id.asc');
+      const users = (rows || []).map(r => ({
+        id: r.id,
+        username: r.customer_name,
+        role: r.category === 'admin' ? 'admin' : 'member',
+        display_name: r.driver_name || r.customer_name,
+        status: r.status || 'active',
+        created_at: r.memo_special || (r.created_at ? r.created_at.substring(0, 10) : '')
+      }));
+      return { success: true, users };
+    },
+
+    // 0-3. 새 계정(부원 공용 / 관리자) 생성 (관리자 전용)
+    async createUser(data) {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 권한이 필요합니다.' };
+      }
+      const username = String(data.username || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      const role = data.role === 'admin' ? 'admin' : 'member';
+      const display_name = String(data.display_name || '').trim() || (role === 'admin' ? '관리자' : '부원 공용');
+
+      if (username.length < 2 || /\s/.test(username)) {
+        return { success: false, message: '아이디는 공백 없이 2글자 이상 입력해 주세요.' };
+      }
+      if (password.length < 4) {
+        return { success: false, message: '비밀번호는 최소 4자 이상 입력해 주세요.' };
+      }
+
+      const dup = await apiFetch(
+        `delivery_schedules?source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(username)}`
+      );
+      if (dup && dup.length > 0) {
+        return { success: false, message: `이미 존재하는 아이디(${username})입니다.` };
+      }
+
+      const insertPayload = {
+        source_sheet: 'OBAND_USERS',
+        customer_name: username,
+        contact: hashPassword(password),
+        category: role,
+        driver_name: display_name,
+        status: 'active',
+        memo_special: getTodayString()
+      };
+
+      const inserted = await apiFetch('delivery_schedules', {
+        method: 'POST',
+        body: JSON.stringify(insertPayload)
+      });
+
+      return {
+        success: true,
+        message: `새 계정 [${username}]이 성공적으로 생성되었습니다.`,
+        id: inserted && inserted[0] ? inserted[0].id : null
+      };
+    },
+
+    // 0-4. 계정 비밀번호 변경 (관리자 전용)
+    async updateUserPassword(userId, newPassword) {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 권한이 필요합니다.' };
+      }
+      const pw = String(newPassword || '');
+      if (pw.length < 4) {
+        return { success: false, message: '새 비밀번호는 최소 4자 이상 입력해 주세요.' };
+      }
+
+      await apiFetch(`delivery_schedules?id=eq.${Number(userId)}&source_sheet=eq.OBAND_USERS`, {
+        method: 'PATCH',
+        body: JSON.stringify({ contact: hashPassword(pw) })
+      });
+
+      return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
+    },
+
+    // 0-5. 계정 삭제 (관리자 전용 / 마지막 관리자 및 본인 계정 보호)
+    async deleteUser(userId) {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 권한이 필요합니다.' };
+      }
+      const sessionUser = getSessionUser();
+      const targetRows = await apiFetch(`delivery_schedules?id=eq.${Number(userId)}&source_sheet=eq.OBAND_USERS`);
+      if (!targetRows || targetRows.length === 0) {
+        return { success: false, message: '삭제할 계정을 찾을 수 없습니다.' };
+      }
+      const target = targetRows[0];
+
+      if (sessionUser && sessionUser.username === target.customer_name) {
+        return { success: false, message: '현재 로그인 중인 본인 계정은 삭제할 수 없습니다.' };
+      }
+
+      if (target.category === 'admin') {
+        const allAdmins = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_USERS&category=eq.admin&status=eq.active');
+        if (!allAdmins || allAdmins.length <= 1) {
+          return { success: false, message: '최소 1명의 관리자 계정은 유지되어야 하므로 삭제할 수 없습니다.' };
+        }
+      }
+
+      await apiFetch(`delivery_schedules?id=eq.${Number(userId)}&source_sheet=eq.OBAND_USERS`, {
+        method: 'DELETE'
+      });
+
+      return { success: true, message: `계정 [${target.customer_name}]이 삭제되었습니다.` };
+    },
 
     // 1. 시스템 설정 및 예약 허용 윈도우 조회
     async getBookingWindow() {
@@ -86,11 +316,8 @@
 
         const open_weeks = Number(settingsMap.open_weeks || 2);
         const reset_day = Number(settingsMap.reset_day || 0);
-        const admin_pin = String(settingsMap.admin_pin || '9999');
         const quick_teams = settingsMap.quick_teams || '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습';
         const kakao_js_key = settingsMap.kakao_js_key || '';
-
-        ObandDB.cachedAdminPin = admin_pin;
 
         const today = getTodayString();
         const max_allowed_date = calcMaxAllowedDate(today, open_weeks, reset_day);
@@ -104,7 +331,6 @@
             reset_day,
             quick_teams,
             kakao_js_key,
-            admin_pin,
             description: ''
           }
         };
@@ -120,7 +346,6 @@
             reset_day: 0,
             quick_teams: '1팀, 2팀, 3팀, 4팀, 5팀, 6팀, 개인연습',
             kakao_js_key: '',
-            admin_pin: '9999',
             description: ''
           }
         };
@@ -134,7 +359,7 @@
       const endDate = `${monthStr}-31`;
 
       const rows = await apiFetch(
-        `delivery_schedules?source_sheet=eq.OBAND_RESERVATION&delivery_date=gte.${startDate}&delivery_date=lte.${endDate}&order=delivery_date.asc,visit_time.asc`
+        `delivery_schedules?source_sheet=eq.OBAND_RESERVATION&delivery_date=gte.${startDate}&delivery_date=lte.${endDate}&status=eq.confirmed&order=delivery_date.asc,visit_time.asc`
       );
 
       const reservations = (rows || []).map(r => ({
@@ -146,7 +371,6 @@
         band_team: r.driver_name || '전체합주',
         part: r.items || '합주',
         purpose: r.memo_special || '',
-        pin: r.contact,
         created_at: r.created_at,
         status: r.status || 'confirmed'
       }));
@@ -157,7 +381,7 @@
       };
     },
 
-    // 3. 예약 등록 및 수정 (isEditMode 분기 처리)
+    // 3. 예약 등록 및 수정 (isEditMode 분기 처리 & 관리자 세션 권한 반영)
     async saveBooking(data) {
       const res_date = data.res_date;
       const start_time = data.start_time;
@@ -166,11 +390,15 @@
       const band_team = (data.band_team || '전체합주').trim();
       const part = (data.part || '합주').trim();
       const purpose = (data.purpose || '').trim();
-      const pin = String(data.pin || '').trim();
+      const isAdminReq = Boolean(data.isAdminBypass || isAdminSession());
+      let pin = String(data.pin || '').trim();
+      if (isAdminReq && !pin) {
+        pin = '0000';
+      }
       const isEditMode = Boolean(data.id);
       const editId = data.id ? Number(data.id) : null;
 
-      if (!res_date || !start_time || !end_time || !member_name || !pin) {
+      if (!res_date || !start_time || !end_time || !member_name || (!isAdminReq && !pin)) {
         return { success: false, message: '날짜, 시작/종료 시간, 예약자명, 4자리 비밀번호(PIN)는 필수입니다.' };
       }
 
@@ -178,17 +406,15 @@
         return { success: false, message: '종료 시간은 시작 시간보다 늦어야 합니다.' };
       }
 
-      if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      if (!isAdminReq && (pin.length !== 4 || !/^\d{4}$/.test(pin))) {
         return { success: false, message: '비밀번호(PIN)는 숫자 4자리로 입력해 주세요.' };
       }
 
       // 최신 예약 윈도우 조회
       const winResult = await ObandDB.getBookingWindow();
       const windowData = winResult.window;
-      const adminPin = ObandDB.cachedAdminPin || '9999';
-      const isAdminReq = (pin === '9999' || pin === adminPin);
 
-      // 예약 오픈 기간 검증 (관리자는 제한 없음)
+      // 예약 오픈 기간 검증 (관리자 계정 로그인 시 제한 없음)
       if (!isAdminReq) {
         if (res_date < windowData.today) {
           return { success: false, message: '지난 날짜는 예약할 수 없습니다.' };
@@ -201,7 +427,7 @@
         }
       }
 
-      // 수정 모드인 경우: 기존 예약의 PIN 일치 여부 확인
+      // 수정 모드인 경우: 기존 예약의 PIN 일치 여부 확인 (관리자는 우회)
       if (isEditMode) {
         const existingRows = await apiFetch(`delivery_schedules?id=eq.${editId}&source_sheet=eq.OBAND_RESERVATION`);
         if (!existingRows || existingRows.length === 0) {
@@ -227,7 +453,6 @@
         for (const r of existingDateRows) {
           const exStart = r.visit_time;
           const exEnd = r.contract_no;
-          // NOT (exEnd <= start_time || exStart >= end_time)
           if (!(exEnd <= start_time || exStart >= end_time)) {
             return {
               success: false,
@@ -248,7 +473,7 @@
           items: part,
           memo_special: purpose
         };
-        const updated = await apiFetch(`delivery_schedules?id=eq.${editId}`, {
+        await apiFetch(`delivery_schedules?id=eq.${editId}`, {
           method: 'PATCH',
           body: JSON.stringify(updatePayload)
         });
@@ -284,11 +509,12 @@
     },
 
     // 4. 예약 취소
-    async cancelBooking(id, pin) {
+    async cancelBooking(id, pin, isAdminBypass = false) {
       const cancelId = Number(id);
       const inputPin = String(pin || '').trim();
+      const isAdminReq = Boolean(isAdminBypass || isAdminSession());
 
-      if (!cancelId || !inputPin) {
+      if (!cancelId || (!isAdminReq && !inputPin)) {
         return { success: false, message: '예약 ID와 비밀번호(PIN)를 입력해 주세요.' };
       }
 
@@ -297,11 +523,9 @@
         return { success: false, message: '취소할 예약 정보를 찾을 수 없습니다.' };
       }
       const existing = rows[0];
-      const adminPin = ObandDB.cachedAdminPin || '9999';
       const isOwner = (String(existing.contact) === inputPin);
-      const isAdmin = (inputPin === '9999' || inputPin === adminPin);
 
-      if (!isOwner && !isAdmin) {
+      if (!isOwner && !isAdminReq) {
         return { success: false, message: '비밀번호(PIN)가 일치하지 않습니다.' };
       }
 
@@ -316,12 +540,10 @@
       };
     },
 
-    // 5. 관리자 예약 조건 설정 변경
+    // 5. 관리자 예약 조건 설정 변경 (관리자 계정 전용)
     async saveSettings(data) {
-      const inputPin = String(data.pin || '').trim();
-      const adminPin = ObandDB.cachedAdminPin || '9999';
-      if (inputPin !== '9999' && inputPin !== adminPin) {
-        return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
+      if (!isAdminSession() && !data.isAdminBypass) {
+        return { success: false, message: '관리자 계정으로 로그인해야 설정을 변경할 수 있습니다.' };
       }
 
       const updates = [];
@@ -351,16 +573,6 @@
       };
     },
 
-    // 6. 관리자 비밀번호 검증
-    async verifyAdmin(pin) {
-      const inputPin = String(pin || '').trim();
-      const adminPin = ObandDB.cachedAdminPin || '9999';
-      if (inputPin === '9999' || inputPin === adminPin) {
-        return { success: true };
-      }
-      return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
-    },
-
     // 7. 공지사항 조회
     async getNotices() {
       const rows = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_NOTICE&order=stop_order.desc,id.desc');
@@ -371,7 +583,6 @@
         author: r.customer_name || '관리자',
         category: r.category || '일반',
         is_pinned: Number(r.stop_order || 0),
-        pin: r.contact,
         created_at: r.memo_special || r.created_at
       }));
       return { success: true, notices };
@@ -397,19 +608,19 @@
     },
 
     // 9. 공지사항 삭제
-    async deleteNotice(id, pin) {
+    async deleteNotice(id, pin, isAdminBypass = false) {
       const noticeId = Number(id);
       const inputPin = String(pin || '').trim();
+      const isAdminReq = Boolean(isAdminBypass || isAdminSession());
+
       const rows = await apiFetch(`delivery_schedules?id=eq.${noticeId}&source_sheet=eq.OBAND_NOTICE`);
       if (!rows || rows.length === 0) {
         return { success: false, message: '삭제할 공지사항을 찾을 수 없습니다.' };
       }
       const existing = rows[0];
-      const adminPin = ObandDB.cachedAdminPin || '9999';
       const isOwner = (String(existing.contact) === inputPin);
-      const isAdmin = (inputPin === '9999' || inputPin === adminPin);
 
-      if (!isOwner && !isAdmin) {
+      if (!isOwner && !isAdminReq) {
         return { success: false, message: '비밀번호(PIN)가 일치하지 않습니다.' };
       }
 
@@ -456,6 +667,17 @@
         body: JSON.stringify(insertPayload)
       });
       return { success: true, message: '새 연습곡이 추가되었습니다.' };
+    },
+
+    // 12. 세트리스트 삭제 (관리자 계정 전용)
+    async deleteSetlist(id) {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 계정으로만 삭제할 수 있습니다.' };
+      }
+      await apiFetch(`delivery_schedules?id=eq.${Number(id)}&source_sheet=eq.OBAND_SETLIST`, {
+        method: 'DELETE'
+      });
+      return { success: true, message: '연습곡이 삭제되었습니다.' };
     }
   };
 
