@@ -146,12 +146,15 @@
       <!-- 선택된 일자 상세 현황 패널 -->
       <div class="day-detail-panel">
         <div class="day-detail-header">
-          <div>
+          <div class="day-detail-meta">
             <div class="day-detail-title" id="selectedDateTitle">📅 예약 현황</div>
             <div class="day-detail-sub" id="selectedDateSub">일자를 선택해 주세요</div>
           </div>
           <button class="btn-book-primary" id="btnBookSlot" onclick="openBookingModalForSelectedDate()">
-            <span>➕ 합주 예약</span>
+            <svg class="btn-plus-svg" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 2.5V13.5M2.5 8H13.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+            <span>합주 예약</span>
           </button>
         </div>
 
@@ -183,7 +186,10 @@
       <div class="section-header">
         <div class="section-title">🎵 합주곡 레퍼토리</div>
         <button class="section-action-btn" onclick="openSetlistModal()">
-          <span>➕ 곡 추가</span>
+          <svg class="btn-plus-svg" width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 2.5V13.5M2.5 8H13.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <span>곡 추가</span>
         </button>
       </div>
       <div id="setlistContainer">
@@ -637,7 +643,7 @@
         </div>
 
         <!-- 확대 안내 및 원터치 확대 버튼 -->
-        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 8px;">
           <button type="button" class="btn-manual-zoom-trigger" onclick="openImageZoom('./safari-guide.jpg', '사파리 바로가기 추가 방법 (우측 메뉴 확대)', 2.2, 'right')">
             🔍 1·2번 표시 부분 크게 확대보기
           </button>
@@ -673,8 +679,8 @@
 
         <!-- 1단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80; min-width: 0;">
               1️⃣ 크롬 우측 상단 점 3개 메뉴 [ ⋮ ] 터치
             </div>
             <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-1.jpg', '1단계: 우측 상단 점 3개 메뉴 [⋮] 터치', 1.8, 'top-right')">🔍 확대</button>
@@ -687,8 +693,8 @@
 
         <!-- 2단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80; min-width: 0;">
               2️⃣ 메뉴에서 [설치 및 바로가기 만들기] 터치
             </div>
             <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-2.jpg', '2단계: [설치 및 바로가기 만들기] 터치', 1.8, 'bottom')">🔍 확대</button>
@@ -701,8 +707,8 @@
 
         <!-- 3단계 스크린샷 -->
         <div style="text-align: left; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: 800; color: #4ade80;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: 800; color: #4ade80; min-width: 0;">
               3️⃣ [바로가기 만들기] 터치!
             </div>
             <button type="button" class="btn-step-zoom" onclick="openImageZoom('./chrome-guide-3.jpg', '3단계: [바로가기 만들기] 터치', 1.8, 'center')">🔍 확대</button>
@@ -735,10 +741,10 @@
       </div>
     </div>
     <div class="image-zoom-controls">
-      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(-0.5)">➖ 축소</button>
+      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(-0.5)">− 축소</button>
       <button type="button" class="btn-zoom-ctrl" id="btnZoomLevelText" onclick="setImageZoom(1)">100%</button>
       <button type="button" class="btn-zoom-ctrl highlight" onclick="setImageZoom(2.2)">🔍 2.2배</button>
-      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(0.6)">➕ 확대</button>
+      <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(0.6)">+ 확대</button>
       <button type="button" class="btn-zoom-ctrl close" onclick="closeImageZoom()">닫기</button>
     </div>
   </div>

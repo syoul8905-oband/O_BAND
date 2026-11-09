@@ -672,7 +672,15 @@ function renderDayTimeline(dateStr) {
   const dayRes = monthReservations.filter(r => r.res_date === dateStr && r.status !== 'cancelled');
   dayRes.sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-  document.getElementById('selectedDateTitle').textContent = `📅 ${info.full} 합주 현황${dayRes.length > 0 ? ` (총 ${dayRes.length}건)` : ''}`;
+  const titleEl = document.getElementById('selectedDateTitle');
+  if (titleEl) {
+    titleEl.innerHTML = `
+      <span class="day-date-text">📅 ${escapeHtml(info.full)}</span>
+      ${dayRes.length > 0
+        ? `<span class="day-count-badge">총 ${dayRes.length}건</span>`
+        : `<span class="day-count-badge is-empty">합주 현황</span>`}
+    `;
+  }
   
   const isLocked = dateStr > bookingWindow.max_allowed_date;
   const isPast = dateStr < todayStr;
@@ -704,11 +712,11 @@ function renderDayTimeline(dateStr) {
   if (dayRes.length === 0) {
     let emptyHint = '';
     if (isAdmin) {
-      emptyHint = '<span style="color:#fbbf24;">[➕ 합주 예약] 버튼을 눌러 관리자 선예약을 등록할 수 있습니다.</span>';
+      emptyHint = '<span style="color:#fbbf24;">[+ 합주 예약] 버튼을 눌러 관리자 선예약을 등록할 수 있습니다.</span>';
     } else if (isLocked) {
       emptyHint = '<span style="color:#f87171;">🔒 매주 일요일에 예약이 순차 오픈됩니다.</span>';
     } else if (!isPast) {
-      emptyHint = '<span style="color:#c084fc;">[➕ 합주 예약] 버튼을 눌러 먼저 예약해 보세요!</span>';
+      emptyHint = '<span style="color:#c084fc;">[+ 합주 예약] 버튼을 눌러 먼저 예약해 보세요!</span>';
     }
 
     listEl.innerHTML = `
