@@ -135,6 +135,251 @@
     return text ? JSON.parse(text) : null;
   }
 
+  // =========================================================================
+  // 경량 네이티브 실시간 동기화 엔진 (Supabase Realtime Broadcast + Tab Sync)
+  // =========================================================================
+  const REALTIME_TOPIC = 'realtime:oband-live-sync';
+  const CLIENT_INSTANCE_ID = 'ob_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+  let rtSocket = null;
+  let rtHeartbeatTimer = null;
+  let rtReconnectTimer = null;
+  let rtRefSeq = 0;
+  let rtJoined = false;
+  let rtShouldStayConnected = false;
+  let rtReconnectDelayMs = 1500;
+  let rtNeedCatchUpSync = false;
+  let rtSyncHandler = null;
+  let rtStatusHandler = null;
+  let tabChannel = null;
+  const recentEventIds = new Set();
+
+  function rememberEventId(evtId) {
+    if (!evtId) return false;
+    if (recentEventIds.has(evtId)) return true;
+    recentEventIds.add(evtId);
+    if (recentEventIds.size > 100) {
+      const firstKey = recentEventIds.values().next().value;
+      recentEventIds.delete(firstKey);
+    }
+    return false;
+  }
+
+  function handleIncomingSyncPayload(payload) {
+    if (!payload || payload.senderId === CLIENT_INSTANCE_ID) return;
+    if (payload.eventId && rememberEventId(payload.eventId)) return;
+    if (typeof rtSyncHandler === 'function') {
+      try {
+        rtSyncHandler(payload);
+      } catch (err) {
+        console.warn('[ObandDB Realtime] 핸들러 오류:', err);
+      }
+    }
+  }
+
+  function initSameBrowserTabChannel() {
+    if (tabChannel || typeof window.BroadcastChannel !== 'function') return;
+    try {
+      tabChannel = new window.BroadcastChannel('oband_tab_sync_v1');
+      tabChannel.onmessage = (e) => {
+        if (e && e.data) handleIncomingSyncPayload(e.data);
+      };
+    } catch (e) {
+      tabChannel = null;
+    }
+  }
+
+  function buildRealtimeWsUrl() {
+    const base = String(cfg.url || '').trim();
+    if (!/^https?:\/\//i.test(base) || !cfg.anonKey) return '';
+    const wsBase = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://').replace(/\/+$/, '');
+    return `${wsBase}/realtime/v1/websocket?apikey=${encodeURIComponent(cfg.anonKey)}&vsn=1.0.0`;
+  }
+
+  function notifyRealtimeStatus(connected) {
+    if (typeof rtStatusHandler === 'function') {
+      try {
+        rtStatusHandler(Boolean(connected));
+      } catch (e) {}
+    }
+  }
+
+  function clearRealtimeTimers() {
+    if (rtHeartbeatTimer) {
+      clearInterval(rtHeartbeatTimer);
+      rtHeartbeatTimer = null;
+    }
+    if (rtReconnectTimer) {
+      clearTimeout(rtReconnectTimer);
+      rtReconnectTimer = null;
+    }
+  }
+
+  function openRealtimeSocket() {
+    if (!rtShouldStayConnected || typeof window.WebSocket !== 'function') return;
+    const wsUrl = buildRealtimeWsUrl();
+    if (!wsUrl) return;
+
+    if (rtSocket && (rtSocket.readyState === 0 || rtSocket.readyState === 1)) {
+      return;
+    }
+
+    try {
+      const ws = new window.WebSocket(wsUrl);
+      rtSocket = ws;
+
+      ws.onopen = () => {
+        if (rtSocket !== ws || !rtShouldStayConnected) {
+          try { ws.close(); } catch (e) {}
+          return;
+        }
+        rtRefSeq++;
+        ws.send(JSON.stringify({
+          topic: REALTIME_TOPIC,
+          event: 'phx_join',
+          payload: {
+            config: {
+              broadcast: { self: false },
+              presence: { key: '' }
+            }
+          },
+          ref: String(rtRefSeq)
+        }));
+
+        if (rtHeartbeatTimer) clearInterval(rtHeartbeatTimer);
+        rtHeartbeatTimer = setInterval(() => {
+          if (rtSocket && rtSocket.readyState === 1) {
+            rtRefSeq++;
+            rtSocket.send(JSON.stringify({
+              topic: 'phoenix',
+              event: 'heartbeat',
+              payload: {},
+              ref: String(rtRefSeq)
+            }));
+          }
+        }, 28000);
+      };
+
+      ws.onmessage = (ev) => {
+        if (!ev || !ev.data) return;
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch (e) {
+          return;
+        }
+        if (msg.topic === REALTIME_TOPIC && msg.event === 'phx_reply' && msg.payload && msg.payload.status === 'ok') {
+          const wasReconnect = rtNeedCatchUpSync;
+          rtJoined = true;
+          rtReconnectDelayMs = 1500;
+          rtNeedCatchUpSync = false;
+          notifyRealtimeStatus(true);
+          if (wasReconnect && typeof rtSyncHandler === 'function') {
+            try {
+              rtSyncHandler({ kind: 'reconnected', ts: Date.now() });
+            } catch (e) {}
+          }
+          return;
+        }
+        if (msg.event === 'broadcast' && msg.payload && msg.payload.event === 'oband_sync') {
+          handleIncomingSyncPayload(msg.payload.payload);
+        }
+      };
+
+      ws.onclose = () => {
+        const wasJoined = rtJoined;
+        rtJoined = false;
+        if (rtHeartbeatTimer) {
+          clearInterval(rtHeartbeatTimer);
+          rtHeartbeatTimer = null;
+        }
+        if (rtSocket === ws) {
+          rtSocket = null;
+        }
+        notifyRealtimeStatus(false);
+        if (rtShouldStayConnected) {
+          if (wasJoined) rtNeedCatchUpSync = true;
+          const waitMs = rtReconnectDelayMs;
+          rtReconnectDelayMs = Math.min(30000, Math.round(rtReconnectDelayMs * 1.8));
+          if (rtReconnectTimer) clearTimeout(rtReconnectTimer);
+          rtReconnectTimer = setTimeout(() => {
+            openRealtimeSocket();
+          }, waitMs);
+        }
+      };
+
+      ws.onerror = () => {
+        // WebSocket 종료 처리는 onclose에서 백오프 재연결 수행
+      };
+    } catch (err) {
+      console.warn('[ObandDB Realtime] 소켓 생성 실패:', err);
+    }
+  }
+
+  function connectRealtime(onSyncEvent, onStatusChange) {
+    rtSyncHandler = onSyncEvent || rtSyncHandler;
+    rtStatusHandler = onStatusChange || rtStatusHandler;
+    rtShouldStayConnected = true;
+    initSameBrowserTabChannel();
+    openRealtimeSocket();
+  }
+
+  function disconnectRealtime() {
+    rtShouldStayConnected = false;
+    rtJoined = false;
+    rtNeedCatchUpSync = false;
+    clearRealtimeTimers();
+    if (rtSocket) {
+      const ws = rtSocket;
+      rtSocket = null;
+      try {
+        if (ws.readyState === 1) {
+          rtRefSeq++;
+          ws.send(JSON.stringify({
+            topic: REALTIME_TOPIC,
+            event: 'phx_leave',
+            payload: {},
+            ref: String(rtRefSeq)
+          }));
+        }
+        ws.close();
+      } catch (e) {}
+    }
+    notifyRealtimeStatus(false);
+  }
+
+  function publishSyncEvent(kind, meta = {}) {
+    const payload = {
+      kind,
+      ...meta,
+      senderId: CLIENT_INSTANCE_ID,
+      eventId: CLIENT_INSTANCE_ID + '_' + (++rtRefSeq) + '_' + Date.now(),
+      ts: Date.now()
+    };
+    rememberEventId(payload.eventId);
+
+    if (tabChannel) {
+      try {
+        tabChannel.postMessage(payload);
+      } catch (e) {}
+    }
+
+    if (rtSocket && rtSocket.readyState === 1 && rtJoined) {
+      try {
+        rtRefSeq++;
+        rtSocket.send(JSON.stringify({
+          topic: REALTIME_TOPIC,
+          event: 'broadcast',
+          payload: {
+            type: 'broadcast',
+            event: 'oband_sync',
+            payload
+          },
+          ref: String(rtRefSeq)
+        }));
+      } catch (e) {}
+    }
+  }
+
   const ObandDB = {
     // 0. 초기 관리자 계정 시드 확인 (admin / 123456789)
     async ensureDefaultAdmin() {
@@ -306,7 +551,7 @@
     // 1. 시스템 설정 및 예약 허용 윈도우 조회
     async getBookingWindow() {
       try {
-        const rows = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_CONFIG');
+        const rows = await apiFetch('delivery_schedules?select=customer_name,memo_full&source_sheet=eq.OBAND_CONFIG');
         const settingsMap = {};
         if (Array.isArray(rows)) {
           rows.forEach(r => {
@@ -352,14 +597,14 @@
       }
     },
 
-    // 2. 월간 예약 데이터 조회
+    // 2. 월간 예약 데이터 조회 (Rule 7 페이로드 다이어트: 필수 컬럼만 선택)
     async getMonthReservations(year, month) {
       const monthStr = `${year}-${String(month).padStart(2, '0')}`;
       const startDate = `${monthStr}-01`;
       const endDate = `${monthStr}-31`;
 
       const rows = await apiFetch(
-        `delivery_schedules?source_sheet=eq.OBAND_RESERVATION&delivery_date=gte.${startDate}&delivery_date=lte.${endDate}&status=eq.confirmed&order=delivery_date.asc,visit_time.asc`
+        `delivery_schedules?select=id,delivery_date,visit_time,contract_no,customer_name,driver_name,items,memo_special,status,created_at&source_sheet=eq.OBAND_RESERVATION&delivery_date=gte.${startDate}&delivery_date=lte.${endDate}&status=eq.confirmed&order=delivery_date.asc,visit_time.asc`
       );
 
       const reservations = (rows || []).map(r => ({
@@ -428,12 +673,16 @@
       }
 
       // 수정 모드인 경우: 기존 예약의 PIN 일치 여부 확인 (관리자는 우회)
+      let existingRecordForRollback = null;
       if (isEditMode) {
-        const existingRows = await apiFetch(`delivery_schedules?id=eq.${editId}&source_sheet=eq.OBAND_RESERVATION`);
+        const existingRows = await apiFetch(
+          `delivery_schedules?select=id,delivery_date,visit_time,contract_no,customer_name,driver_name,items,memo_special,contact,status&id=eq.${editId}&source_sheet=eq.OBAND_RESERVATION`
+        );
         if (!existingRows || existingRows.length === 0) {
           return { success: false, message: '수정할 예약 정보를 찾을 수 없습니다.' };
         }
         const existing = existingRows[0];
+        existingRecordForRollback = existing;
         if (existing.status === 'cancelled') {
           return { success: false, message: '이미 취소된 예약은 수정할 수 없습니다.' };
         }
@@ -444,7 +693,7 @@
       }
 
       // 중복 예약 검증 (동일 날짜의 확정 예약과 시간 겹침 체크)
-      let conflictQuery = `delivery_schedules?source_sheet=eq.OBAND_RESERVATION&delivery_date=eq.${res_date}&status=eq.confirmed`;
+      let conflictQuery = `delivery_schedules?select=id,visit_time,contract_no,customer_name,status&source_sheet=eq.OBAND_RESERVATION&delivery_date=eq.${res_date}&status=eq.confirmed`;
       if (isEditMode) {
         conflictQuery += `&id=neq.${editId}`;
       }
@@ -456,13 +705,14 @@
           if (!(exEnd <= start_time || exStart >= end_time)) {
             return {
               success: false,
+              status: 409,
               message: `해당 시간대(${start_time}~${end_time})에 이미 예약(${r.customer_name}님, ${exStart}~${exEnd})이 존재합니다.`
             };
           }
         }
       }
 
-      // DB 저장 또는 갱신
+      // DB 저장 또는 갱신 + 동시성 경합(TOCTOU) 사후 검증 및 자동 롤백
       if (isEditMode) {
         const updatePayload = {
           delivery_date: res_date,
@@ -476,6 +726,42 @@
         await apiFetch(`delivery_schedules?id=eq.${editId}`, {
           method: 'PATCH',
           body: JSON.stringify(updatePayload)
+        });
+
+        // 0.05초 동시 수정/등록 경합 검증
+        const postRows = await apiFetch(
+          `delivery_schedules?select=id,visit_time,contract_no,customer_name&source_sheet=eq.OBAND_RESERVATION&delivery_date=eq.${res_date}&status=eq.confirmed&id=neq.${editId}&order=id.asc`
+        );
+        const raced = Array.isArray(postRows)
+          ? postRows.find(r => !(r.contract_no <= start_time || r.visit_time >= end_time))
+          : null;
+        if (raced && existingRecordForRollback) {
+          await apiFetch(`delivery_schedules?id=eq.${editId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              delivery_date: existingRecordForRollback.delivery_date,
+              visit_time: existingRecordForRollback.visit_time,
+              contract_no: existingRecordForRollback.contract_no,
+              customer_name: existingRecordForRollback.customer_name,
+              driver_name: existingRecordForRollback.driver_name,
+              items: existingRecordForRollback.items,
+              memo_special: existingRecordForRollback.memo_special
+            })
+          }).catch(() => {});
+          return {
+            success: false,
+            status: 409,
+            message: `⚠️ 방금 다른 부원(${raced.customer_name}님, ${raced.visit_time}~${raced.contract_no})이 해당 시간대를 먼저 예약했습니다. 다른 시간대를 선택해 주세요.`
+          };
+        }
+
+        publishSyncEvent('reservation', {
+          action: 'update',
+          month: res_date.slice(0, 7),
+          res_date,
+          start_time,
+          end_time,
+          member_name
         });
         return {
           success: true,
@@ -499,7 +785,36 @@
           method: 'POST',
           body: JSON.stringify(insertPayload)
         });
-        const newId = inserted && inserted[0] ? inserted[0].id : null;
+        const newId = inserted && inserted[0] ? Number(inserted[0].id) : null;
+
+        // Post-Insert Tie-Breaker: 0.05초 동시 클릭 시 먼저 발급된 최소 ID만 생존
+        if (newId) {
+          const priorRows = await apiFetch(
+            `delivery_schedules?select=id,visit_time,contract_no,customer_name&source_sheet=eq.OBAND_RESERVATION&delivery_date=eq.${res_date}&status=eq.confirmed&id=lt.${newId}&order=id.asc`
+          );
+          const winner = Array.isArray(priorRows)
+            ? priorRows.find(r => !(r.contract_no <= start_time || r.visit_time >= end_time))
+            : null;
+          if (winner) {
+            await apiFetch(`delivery_schedules?id=eq.${newId}&source_sheet=eq.OBAND_RESERVATION`, {
+              method: 'DELETE'
+            }).catch(() => {});
+            return {
+              success: false,
+              status: 409,
+              message: `⚠️ 방금 다른 부원(${winner.customer_name}님, ${winner.visit_time}~${winner.contract_no})이 먼저 예약을 완료했습니다. 다른 시간대를 선택해 주세요!`
+            };
+          }
+        }
+
+        publishSyncEvent('reservation', {
+          action: 'create',
+          month: res_date.slice(0, 7),
+          res_date,
+          start_time,
+          end_time,
+          member_name
+        });
         return {
           success: true,
           message: '합주실 예약이 완료되었습니다!',
@@ -518,7 +833,7 @@
         return { success: false, message: '예약 ID와 비밀번호(PIN)를 입력해 주세요.' };
       }
 
-      const rows = await apiFetch(`delivery_schedules?id=eq.${cancelId}&source_sheet=eq.OBAND_RESERVATION`);
+      const rows = await apiFetch(`delivery_schedules?select=id,contact,delivery_date,visit_time,contract_no,customer_name&id=eq.${cancelId}&source_sheet=eq.OBAND_RESERVATION`);
       if (!rows || rows.length === 0) {
         return { success: false, message: '취소할 예약 정보를 찾을 수 없습니다.' };
       }
@@ -532,6 +847,15 @@
       await apiFetch(`delivery_schedules?id=eq.${cancelId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'cancelled' })
+      });
+
+      publishSyncEvent('reservation', {
+        action: 'cancel',
+        month: existing.delivery_date ? existing.delivery_date.slice(0, 7) : '',
+        res_date: existing.delivery_date || '',
+        start_time: existing.visit_time || '',
+        end_time: existing.contract_no || '',
+        member_name: existing.customer_name || ''
       });
 
       return {
@@ -567,15 +891,17 @@
         });
       }
 
+      publishSyncEvent('config', { action: 'update' });
+
       return {
         success: true,
         message: '설정이 성공적으로 저장되었습니다.'
       };
     },
 
-    // 7. 공지사항 조회
+    // 7. 공지사항 조회 (PIN 컬럼 contact 제외)
     async getNotices() {
-      const rows = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_NOTICE&order=stop_order.desc,id.desc');
+      const rows = await apiFetch('delivery_schedules?select=id,driver_name,memo_full,customer_name,category,stop_order,memo_special,created_at&source_sheet=eq.OBAND_NOTICE&order=stop_order.desc,id.desc');
       const notices = (rows || []).map(r => ({
         id: r.id,
         title: r.driver_name,
@@ -604,6 +930,7 @@
         method: 'POST',
         body: JSON.stringify(insertPayload)
       });
+      publishSyncEvent('notice', { action: 'create' });
       return { success: true, message: '공지사항이 등록되었습니다.' };
     },
 
@@ -613,7 +940,7 @@
       const inputPin = String(pin || '').trim();
       const isAdminReq = Boolean(isAdminBypass || isAdminSession());
 
-      const rows = await apiFetch(`delivery_schedules?id=eq.${noticeId}&source_sheet=eq.OBAND_NOTICE`);
+      const rows = await apiFetch(`delivery_schedules?select=id,contact&id=eq.${noticeId}&source_sheet=eq.OBAND_NOTICE`);
       if (!rows || rows.length === 0) {
         return { success: false, message: '삭제할 공지사항을 찾을 수 없습니다.' };
       }
@@ -627,12 +954,13 @@
       await apiFetch(`delivery_schedules?id=eq.${noticeId}`, {
         method: 'DELETE'
       });
+      publishSyncEvent('notice', { action: 'delete' });
       return { success: true, message: '공지사항이 삭제되었습니다.' };
     },
 
     // 10. 세트리스트 조회
     async getSetlists() {
-      const rows = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_SETLIST&order=id.asc');
+      const rows = await apiFetch('delivery_schedules?select=id,driver_name,customer_name,items,visit_time,contract_no,address,status,memo_full,memo_special,created_at&source_sheet=eq.OBAND_SETLIST&order=id.asc');
       const setlists = (rows || []).map(r => ({
         id: r.id,
         title: r.driver_name,
@@ -666,6 +994,7 @@
         method: 'POST',
         body: JSON.stringify(insertPayload)
       });
+      publishSyncEvent('setlist', { action: 'create' });
       return { success: true, message: '새 연습곡이 추가되었습니다.' };
     },
 
@@ -677,8 +1006,15 @@
       await apiFetch(`delivery_schedules?id=eq.${Number(id)}&source_sheet=eq.OBAND_SETLIST`, {
         method: 'DELETE'
       });
+      publishSyncEvent('setlist', { action: 'delete' });
       return { success: true, message: '연습곡이 삭제되었습니다.' };
-    }
+    },
+
+    // 13. 실시간 동기화 제어 API
+    connectRealtime,
+    disconnectRealtime,
+    publishSyncEvent,
+    isRealtimeConnected: () => Boolean(rtJoined)
   };
 
   window.ObandDB = ObandDB;

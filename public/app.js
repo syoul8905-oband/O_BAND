@@ -157,6 +157,13 @@ async function submitGateLogin(e) {
 function logoutAuthSession() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
 
+  stopRealtimeSync();
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = null;
+  }
+  lastMonthSyncAt = 0;
+
   sessionStorage.removeItem('oppaen_auth_user');
   currentUser = null;
   isAdmin = false;
@@ -299,7 +306,8 @@ async function enterAuthenticatedApp() {
   renderCalendar();
   renderDayTimeline(selectedDate);
 
-  // 3. 기타 탭 데이터 백그라운드 프리로드
+  // 3. 실시간 Broadcast 동기화 시작 및 기타 탭 데이터 백그라운드 프리로드
+  startRealtimeSync();
   loadNotices();
   loadSetlists();
 }
@@ -426,6 +434,8 @@ async function checkAndApplyMidnightRollover() {
   return false;
 }
 
+let isLifecycleSyncListenersBound = false;
+
 function initMidnightResetWatcher() {
   if (midnightWatcherTimer) clearInterval(midnightWatcherTimer);
   midnightWatcherTimer = setInterval(() => {
@@ -434,16 +444,23 @@ function initMidnightResetWatcher() {
     }
   }, 1000);
 
+  if (isLifecycleSyncListenersBound) return;
+  isLifecycleSyncListenersBound = true;
+
+  const onAppForeground = () => {
+    if (!currentUser || isSleeping) return;
+    checkAndApplyMidnightRollover();
+    if (Date.now() - lastMonthSyncAt > 3500) {
+      syncLiveAppData({ source: 'focus', silent: true });
+    }
+  };
+
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && currentUser) {
-      checkAndApplyMidnightRollover();
+    if (document.visibilityState === 'visible') {
+      onAppForeground();
     }
   });
-  window.addEventListener('focus', () => {
-    if (currentUser) {
-      checkAndApplyMidnightRollover();
-    }
-  });
+  window.addEventListener('focus', onAppForeground);
 }
 
 function formatDateDisplay(dateStr) {
@@ -502,25 +519,184 @@ async function loadBookingWindow() {
   }
 }
 
-// 2. 월간 예약 데이터 불러오기
+// 2. 월간 예약 데이터 불러오기 & 실시간 다중 기기 동기화 엔진
+let lastMonthSyncAt = 0;
+let monthFetchSeq = 0;
+let syncDebounceTimer = null;
+let isSyncInFlight = false;
+let pendingSyncOpts = null;
+
 async function loadMonthData(year, month) {
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+  const mySeq = ++monthFetchSeq;
   try {
     if (window.ObandDB) {
       const data = await window.ObandDB.getMonthReservations(year, month);
-      if (data.success) {
+      if (data.success && mySeq === monthFetchSeq) {
         monthReservations = data.reservations || [];
+        lastMonthSyncAt = Date.now();
       }
     } else {
       const res = await fetch(`${API_BASE}/api/reservations?month=${monthStr}`);
       const data = await res.json();
-      if (data.success) {
+      if (data.success && mySeq === monthFetchSeq) {
         monthReservations = data.reservations || [];
+        lastMonthSyncAt = Date.now();
       }
     }
   } catch (err) {
     console.error('월간 예약 로드 실패:', err);
   }
+}
+
+function updateConnectionStatusBadge(connected) {
+  const textEl = document.getElementById('statusText');
+  if (textEl) {
+    textEl.textContent = connected ? '실시간' : 'LTE/5G';
+  }
+}
+
+function syncOpenBookingModalNonDestructive() {
+  const modal = document.getElementById('bookingModal');
+  if (!modal || !modal.classList.contains('active')) return;
+
+  const modalDateEl = document.getElementById('bookDate');
+  const startSelect = document.getElementById('bookStartTime');
+  const endSelect = document.getElementById('bookEndTime');
+  const modalDate = modalDateEl ? modalDateEl.value : selectedDate;
+  if (!modalDate || !startSelect || !endSelect) return;
+
+  const prevStart = startSelect.value;
+  const prevEnd = endSelect.value;
+
+  refreshTimeSlotsForDate(modalDate);
+
+  let conflictDetected = false;
+  const startOpt = prevStart
+    ? Array.from(startSelect.options).find(o => o.value === prevStart && !o.disabled)
+    : null;
+
+  if (startOpt) {
+    startSelect.value = prevStart;
+    updateEndTimeOptions();
+    const endOpt = prevEnd
+      ? Array.from(endSelect.options).find(o => o.value === prevEnd && !o.disabled)
+      : null;
+    if (endOpt) {
+      endSelect.value = prevEnd;
+    } else if (prevEnd) {
+      conflictDetected = true;
+    }
+  } else if (prevStart) {
+    conflictDetected = true;
+  }
+
+  validateSelectedTimeRange();
+
+  if (conflictDetected) {
+    const msgEl = document.getElementById('timeValidationMessage');
+    if (msgEl) {
+      msgEl.style.color = '#f87171';
+      msgEl.textContent = '⚠️ 방금 다른 부원이 선택한 시간대를 먼저 예약했습니다! 빈 시간대를 다시 선택해 주세요.';
+    }
+    showToast('⚠️ 방금 다른 부원이 해당 시간대를 먼저 예약했습니다.\n시간대를 다시 선택해 주세요!');
+  }
+}
+
+function buildRemoteSyncToast(ev) {
+  if (!ev || ev.kind !== 'reservation') return '';
+  const dateLabel = ev.res_date ? ev.res_date.slice(5).replace('-', '/') : '';
+  const timeLabel = ev.start_time ? ` ${ev.start_time}` : '';
+  if (ev.action === 'create') {
+    return `🔄 실시간 반영: ${dateLabel}${timeLabel} 새 예약이 등록되었습니다.`;
+  }
+  if (ev.action === 'update') {
+    return `🔄 실시간 반영: ${dateLabel}${timeLabel} 예약이 수정되었습니다.`;
+  }
+  if (ev.action === 'cancel') {
+    return `🔄 실시간 반영: ${dateLabel}${timeLabel} 예약이 취소되었습니다.`;
+  }
+  return '🔄 실시간 예약 일정이 업데이트되었습니다.';
+}
+
+async function syncLiveAppData(opts = {}) {
+  if (!currentUser || isSleeping) return;
+  if (isSyncInFlight) {
+    pendingSyncOpts = opts;
+    return;
+  }
+  isSyncInFlight = true;
+  try {
+    const source = opts.source || 'remote';
+    if (source === 'config' || source === 'focus' || source === 'reconnected') {
+      await loadBookingWindow();
+    }
+    if (source === 'notice') {
+      await loadNotices();
+    } else if (source === 'setlist') {
+      await loadSetlists();
+    } else {
+      await loadMonthData(calYear, calMonth);
+      renderCalendar();
+      renderDayTimeline(selectedDate);
+      syncOpenBookingModalNonDestructive();
+    }
+
+    if (!opts.silent && opts.notifyText) {
+      showToast(opts.notifyText);
+    }
+  } catch (err) {
+    console.warn('[LiveSync] 동기화 실패:', err);
+  } finally {
+    isSyncInFlight = false;
+    if (pendingSyncOpts) {
+      const nextOpts = pendingSyncOpts;
+      pendingSyncOpts = null;
+      syncLiveAppData(nextOpts);
+    }
+  }
+}
+
+function handleRealtimeSyncEvent(ev) {
+  if (!currentUser || isSleeping || !ev) return;
+  if (ev.kind === 'reservation') {
+    const activePrefix = `${calYear}-${String(calMonth).padStart(2, '0')}`;
+    if (ev.month && ev.month !== activePrefix) {
+      const notice = buildRemoteSyncToast(ev);
+      if (notice) showToast(notice);
+      return;
+    }
+    if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(() => {
+      syncLiveAppData({
+        source: 'reservation',
+        silent: false,
+        notifyText: buildRemoteSyncToast(ev)
+      });
+    }, 80);
+  } else if (ev.kind === 'notice') {
+    syncLiveAppData({ source: 'notice', silent: false, notifyText: '📢 공지사항이 실시간 업데이트되었습니다.' });
+  } else if (ev.kind === 'setlist') {
+    syncLiveAppData({ source: 'setlist', silent: false, notifyText: '🎵 합주곡 목록이 실시간 업데이트되었습니다.' });
+  } else if (ev.kind === 'config') {
+    syncLiveAppData({ source: 'config', silent: false, notifyText: '⚙️ 예약 운영 설정이 실시간 반영되었습니다.' });
+  } else if (ev.kind === 'reconnected') {
+    syncLiveAppData({ source: 'reconnected', silent: true });
+  }
+}
+
+function startRealtimeSync() {
+  if (!currentUser || !window.ObandDB || typeof window.ObandDB.connectRealtime !== 'function') {
+    return;
+  }
+  window.ObandDB.connectRealtime(handleRealtimeSyncEvent, updateConnectionStatusBadge);
+}
+
+function stopRealtimeSync() {
+  if (window.ObandDB && typeof window.ObandDB.disconnectRealtime === 'function') {
+    window.ObandDB.disconnectRealtime();
+  }
+  updateConnectionStatusBadge(false);
 }
 
 // 3. 월간 캘린더 그리드 렌더링
@@ -1088,6 +1264,8 @@ async function submitTeamChips(e) {
 }
 
 // 6. 예약 모달 열기(신규 등록 / 기존 예약 수정) 및 제출
+let isSubmittingBooking = false;
+
 function openBookingModalForSelectedDate() {
   const editIdEl = document.getElementById('editBookingId');
   const titleEl = document.getElementById('bookingModalTitle');
@@ -1120,6 +1298,11 @@ function openBookingModalForSelectedDate() {
   updateAdminHeaderUI();
   refreshTimeSlotsForDate(selectedDate);
   openModal('bookingModal');
+
+  // 모달 오픈 직후 최신 서버 예약 현황 온디맨드 동기화 (비파괴)
+  if (currentUser && !isSleeping && window.ObandDB && (Date.now() - lastMonthSyncAt > 1500)) {
+    syncLiveAppData({ source: 'modal_open', silent: true });
+  }
 }
 
 function openEditBookingModal(id) {
@@ -1179,6 +1362,8 @@ function openEditBookingModal(id) {
 
 async function submitBooking(e) {
   e.preventDefault();
+  if (isSubmittingBooking) return;
+
   const teamEl = document.getElementById('bookBandTeam');
   const selectedTeam = teamEl ? teamEl.value.trim() : '전체합주';
   const editIdEl = document.getElementById('editBookingId');
@@ -1210,6 +1395,14 @@ async function submitBooking(e) {
     return;
   }
 
+  const submitBtn = document.getElementById('btnSubmitBooking');
+  const prevBtnText = submitBtn ? submitBtn.textContent : '';
+  isSubmittingBooking = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ 예약 확인 중...';
+  }
+
   try {
     let result;
     if (window.ObandDB) {
@@ -1226,6 +1419,18 @@ async function submitBooking(e) {
     }
 
     if (!result.success) {
+      if (result.status === 409) {
+        const [ry, rm] = body.res_date.split('-').map(Number);
+        if (ry && rm) {
+          calYear = ry;
+          calMonth = rm;
+          selectedDate = body.res_date;
+        }
+        await loadMonthData(calYear, calMonth);
+        renderCalendar();
+        renderDayTimeline(selectedDate);
+        syncOpenBookingModalNonDestructive();
+      }
       alert(result.message || (isEditMode ? '예약 수정 실패' : '예약 실패'));
       if (result.status === 403) {
         const pinInput = document.getElementById('bookPin');
@@ -1263,6 +1468,12 @@ async function submitBooking(e) {
     }
   } catch (err) {
     alert(`오류 발생: ${err.message}`);
+  } finally {
+    isSubmittingBooking = false;
+    if (submitBtn) {
+      submitBtn.textContent = prevBtnText || (isEditMode ? '✏️ 예약 수정 완료하기' : '예약 완료하기');
+      validateSelectedTimeRange();
+    }
   }
 }
 
@@ -2019,9 +2230,10 @@ function enterSleepMode() {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
+  stopRealtimeSync();
   const overlay = document.getElementById('sleepModeOverlay');
   if (overlay) overlay.classList.add('active');
-  console.log('🌙 오뺀 절전 모드 가동 (트래픽 차단)');
+  console.log('🌙 오뺀 절전 모드 가동 (트래픽 & 소켓 차단)');
 }
 
 async function wakeFromSleep() {
@@ -2030,6 +2242,7 @@ async function wakeFromSleep() {
   isSleeping = false;
   resetSleepTimer();
   initServerKeepAlive();
+  startRealtimeSync();
 
   // 최신 데이터 및 자정(0시) 경과 시 오픈 기간 즉시 갱신
   try {
@@ -2038,6 +2251,7 @@ async function wakeFromSleep() {
     await loadMonthData(calYear, calMonth);
     renderCalendar();
     renderDayTimeline(selectedDate);
+    syncOpenBookingModalNonDestructive();
     showToast('⚡ 절전 모드가 해제되었습니다.');
   } catch (e) {
     console.warn('Wake update failed:', e);
