@@ -2115,9 +2115,35 @@ function shareReservationDirect(resDate, startTime, endTime, bandTeam, memberNam
   });
 }
 
-function shareReservationKakao(info) {
-  const isKakaoReady = ensureKakaoInitialized();
+function canDirectLaunchKakaoTalkApp() {
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const isKakaoInApp = /kakaotalk/.test(ua);
+  if (isKakaoInApp) return true;
 
+  // 카카오 JS SDK 2.7.4 yo() / Kt() 분기 기준과 100% 일치시킴
+  // (모바일 앱 직결이 불가능한 PC/Opera/Huawei/안드로이드 데스크톱 보기에서는 웹 로그인 팝업 대신 즉시 복사 폴백 사용)
+  const isBlockedMobileBrowser = /opr\/|opt\/|huawei/.test(ua);
+  if (isBlockedMobileBrowser) return false;
+
+  const isIosMobileOrTablet = /iphone|ipod|ipad/.test(ua) || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const isAndroidMobile = /android.+mobile/.test(ua);
+  return isIosMobileOrTablet || isAndroidMobile;
+}
+
+function canUseKakaoSdkShareOnCurrentHost() {
+  // 카카오 디벨로퍼스 [웹 도메인] 허용 호스트만 SDK 직접 호출 (미등록 호스트 o-band.onrender.com / localhost 등에서 -401 -> 4019 페이지 이탈 원천 차단)
+  const host = (window.location.hostname || '').toLowerCase();
+  return host === 'syoul8905-oband.github.io';
+}
+
+function getCanonicalShareUrl() {
+  if (window.location.hostname === 'syoul8905-oband.github.io') {
+    return window.location.origin + window.location.pathname;
+  }
+  return 'https://syoul8905-oband.github.io/O_BAND/';
+}
+
+function shareReservationKakao(info) {
   const days = ['일', '월', '화', '수', '목', '금', '토'];
   const d = new Date(info.res_date + 'T00:00:00');
   const dayStr = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
@@ -2130,75 +2156,122 @@ function shareReservationKakao(info) {
     if (durHours > 0) durationText = ` (${durHours}시간)`;
   }
 
-  const shareUrl = window.location.origin && window.location.origin.startsWith('http')
-    ? (window.location.origin + window.location.pathname)
-    : 'https://syoul8905-oband.github.io/O_BAND/';
+  const shareUrl = getCanonicalShareUrl();
+  const safeTeam = (info && info.band_team) ? info.band_team : '전체합주';
+  const safeMember = (info && info.member_name) ? info.member_name : '부원';
 
-  const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${info.band_team || '전체합주'}\n👤 예약자: ${info.member_name} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`;
+  const shareText = `[오늘부터 밴드부 🎸 합주실 예약 안내]\n\n📅 일시: ${info.res_date}${dayStr} ${info.start_time} ~ ${info.end_time}${durationText}\n🎸 팀명: ${safeTeam}\n👤 예약자: ${safeMember} 님\n📍 장소: 오뺀 합주실\n\n👉 일정 및 세부 사항 확인:\n${shareUrl}`;
 
-  // 1. 카카오톡 공식 SDK 직접 연동 (카톡 앱 즉시 실행 및 채팅방/친구 선택 창 바로 띄우기)
-  if (isKakaoReady) {
-    try {
-      Kakao.Share.sendDefault({
-        objectType: 'text',
-        text: shareText,
-        link: {
-          mobileWebUrl: shareUrl,
-          webUrl: shareUrl
-        },
-        buttons: [
-          {
-            title: '📅 합주실 일정 확인하기',
-            link: {
-              mobileWebUrl: shareUrl,
-              webUrl: shareUrl
-            }
-          }
-        ]
+  // 1. A안: PC 브라우저 · 모바일 데스크톱 사이트 모드 · 태블릿/차단 모바일 브라우저에서는 카카오 웹 로그인 팝업 없이 즉시 공유/복사
+  if (!canDirectLaunchKakaoTalkApp()) {
+    const ua = navigator.userAgent || '';
+    const isCoarsePointer = Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const isAndroidDesktopSite = /Linux/i.test(ua) && !/Android/i.test(ua) && (navigator.maxTouchPoints > 1 || (navigator.maxTouchPoints > 0 && isCoarsePointer));
+    const isMobileOrTabletOs = /Android|iPhone|iPad|iPod/i.test(ua);
+
+    if (isMobileOrTabletOs && navigator.share) {
+      navigator.share({
+        title: `오늘부터 밴드부 합주 예약 (${safeTeam})`,
+        text: shareText
+      }).catch(err => {
+        if (!err || err.name !== 'AbortError') {
+          copyShareTextFallback(shareText, '📋 카톡 공유 문구가 복사되었습니다!\n채팅 입력창을 길게 눌러 붙여넣기하세요.');
+        }
       });
-      return; // 카카오톡 공유 호출 완료
-    } catch (err) {
-      console.error('Kakao.Share.sendDefault 에러:', err);
-      // PC에서 브라우저 팝업이 차단된 경우 명확하게 안내
-      if (err && err.message && err.message.includes('focus')) {
-        alert('⚠️ PC 브라우저의 [팝업 차단]으로 인해 카카오톡 공유창이 열리지 못했습니다!\n브라우저 주소창 우측 상단의 팝업 차단 아이콘을 눌러 "팝업 항상 허용"을 선택해 주세요.');
-        return;
-      }
-      alert(`⚠️ 카카오톡 연결 실패: ${err.message || err}`);
       return;
+    }
+
+    let toastMsg = '📋 카톡 공유 문구가 복사되었습니다!\nPC 카카오톡 채팅방에 붙여넣기(Ctrl+V)하세요.';
+    if (isAndroidDesktopSite) {
+      toastMsg = '📋 카톡 공유 문구가 복사되었습니다!\n모바일 카톡 앱 바로 열기는 크롬 ⋮ [데스크톱 사이트]를 꺼 주세요.';
+    } else if (isMobileOrTabletOs) {
+      toastMsg = '📋 카톡 공유 문구가 복사되었습니다!\n채팅 입력창을 길게 눌러 붙여넣기하세요.';
+    }
+    copyShareTextFallback(shareText, toastMsg);
+    return;
+  }
+
+  // 2. 스마트폰 모바일 브라우저 (허용 호스트): 카카오톡 공식 SDK 직접 연동 (카톡 앱 즉시 실행 및 채팅방/친구 선택 창 바로 띄우기)
+  if (canUseKakaoSdkShareOnCurrentHost()) {
+    const isKakaoReady = ensureKakaoInitialized();
+    if (isKakaoReady) {
+      try {
+        Kakao.Share.sendDefault({
+          objectType: 'text',
+          text: shareText,
+          link: {
+            mobileWebUrl: shareUrl,
+            webUrl: shareUrl
+          },
+          buttons: [
+            {
+              title: '📅 합주실 일정 확인하기',
+              link: {
+                mobileWebUrl: shareUrl,
+                webUrl: shareUrl
+              }
+            }
+          ]
+        });
+        return; // 카카오톡 공유 호출 완료
+      } catch (err) {
+        console.error('Kakao.Share.sendDefault 에러:', err);
+      }
     }
   }
 
-  // 2. SDK 로드 실패 시 명확한 경고
-  alert('⚠️ 카카오톡 SDK를 로드할 수 없습니다. 네트워크 연결을 확인해 주세요.');
+  // 3. SDK 미로드/동기 오류/비허용 호스트 시 OS 공유 시트 또는 자동 복사 폴백으로 4019 완전 차단
+  if (navigator.share) {
+    navigator.share({
+      title: `오늘부터 밴드부 합주 예약 (${safeTeam})`,
+      text: shareText
+    }).catch(err => {
+      if (!err || err.name !== 'AbortError') {
+        copyShareTextFallback(shareText, '📋 카톡 공유 문구가 복사되었습니다!\n채팅 입력창을 길게 눌러 붙여넣기하세요.');
+      }
+    });
+    return;
+  }
+
+  copyShareTextFallback(shareText, '📋 카톡 공유 문구가 복사되었습니다!\n채팅 입력창을 길게 눌러 붙여넣기하세요.');
 }
 
-function copyShareTextFallback(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
+function copyShareTextFallback(text, successToastMsg = '📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.') {
+  if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
-      showToast('📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.');
+      showToast(successToastMsg);
     }).catch(() => {
-      legacyCopyText(text);
+      legacyCopyText(text, successToastMsg);
     });
   } else {
-    legacyCopyText(text);
+    legacyCopyText(text, successToastMsg);
   }
 }
 
-function legacyCopyText(text) {
+function legacyCopyText(text, successToastMsg = '📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.') {
   const ta = document.createElement('textarea');
   ta.value = text;
+  ta.setAttribute('readonly', '');
   ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  ta.style.left = '-9999px';
   ta.style.opacity = '0';
   document.body.appendChild(ta);
   ta.select();
+  ta.setSelectionRange(0, text.length);
+  let copied = false;
   try {
-    document.execCommand('copy');
-    showToast('📋 카톡 공유 문구가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.');
+    copied = document.execCommand('copy');
   } catch (e) {
-    prompt('아래 문구를 복사하여 카카오톡에 붙여넣으세요:', text);
+    copied = false;
   }
   document.body.removeChild(ta);
+
+  if (copied) {
+    showToast(successToastMsg);
+  } else {
+    prompt('아래 문구를 복사하여 카카오톡에 붙여넣으세요:', text);
+  }
 }
 
 function showToast(msg) {
