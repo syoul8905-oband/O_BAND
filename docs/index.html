@@ -338,20 +338,14 @@
 
         <form id="createAccountForm" onsubmit="submitCreateAccount(event)" style="background:rgba(255,255,255,0.03); border:1px solid var(--border-light); border-radius:12px; padding:12px; margin-bottom:14px;">
           <div style="font-size:13px; font-weight:800; color:var(--accent-cyan); margin-bottom:10px;">➕ 새 아이디 · 비밀번호 생성</div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="newAccountRole">계정 구분</label>
-              <select class="form-select" id="newAccountRole">
-                <option value="member" selected>🎸 회원</option>
-                <option value="staff">⭐ 운영진</option>
-                <option value="admin">👑 관리자</option>
-                <option value="rest">💤 휴식 (로그인 차단)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="newAccountDisplayName">표시 이름</label>
-              <input type="text" class="form-input" id="newAccountDisplayName" placeholder="예: 회원 또는 이름">
-            </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" for="newAccountRole">계정 구분</label>
+            <select class="form-select" id="newAccountRole" style="width: 100%;">
+              <option value="member" selected>🎸 회원</option>
+              <option value="staff">⭐ 운영진</option>
+              <option value="admin">👑 관리자</option>
+              <option value="rest">💤 휴식 (로그인 차단)</option>
+            </select>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -366,7 +360,14 @@
           <button type="submit" class="btn-submit" style="margin-top:4px;">계정 생성하기</button>
         </form>
 
-        <div style="font-size:13px; font-weight:800; color:var(--text-main); margin-bottom:8px;">📋 등록된 계정 목록</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="font-size:13px; font-weight:800; color:var(--text-main);">📋 등록된 계정 목록 <span id="adminAccountCount" style="font-size:11px; font-weight:700; color:var(--accent-cyan); margin-left:4px;"></span></div>
+        </div>
+        <div class="account-search-box" style="margin-bottom:10px; position:relative;">
+          <input type="text" id="adminAccountSearch" class="form-input" placeholder="🔍 계정 검색 (이름, 아이디, 구분)" oninput="filterAdminAccounts()" style="padding-left:36px; padding-right:32px; font-size:12.5px; height:38px;">
+          <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; opacity:0.6; pointer-events:none;">🔍</span>
+          <button type="button" id="btnAdminAccountSearchClear" onclick="clearAdminAccountSearch()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-dim); font-size:14px; cursor:pointer; display:none; padding:4px;">✕</button>
+        </div>
         <div id="adminAccountList" class="admin-account-list">
           <div class="empty-text" style="padding:12px 0;">계정 목록을 불러오는 중...</div>
         </div>
@@ -804,21 +805,17 @@
         <input type="hidden" id="editAccountUserId">
         <div class="form-group" style="margin-bottom: 12px;">
           <label class="form-label" for="editAccountRole" style="font-size:12px; font-weight:700;">계정 구분</label>
-          <select class="form-select" id="editAccountRole">
+          <select class="form-select" id="editAccountRole" style="width: 100%;">
             <option value="member">🎸 회원</option>
             <option value="staff">⭐ 운영진</option>
             <option value="admin">👑 관리자</option>
             <option value="rest">💤 휴식 (로그인 차단)</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom: 12px;">
+        <div class="form-group" style="margin-bottom: 16px;">
           <label class="form-label" for="editAccountUsername" style="font-size:12px; font-weight:700;">아이디 (ID / 이름)</label>
           <input type="text" class="form-input" id="editAccountUsername" placeholder="아이디 입력 (2자 이상)" required autocapitalize="none" autocorrect="off" spellcheck="false">
           <div id="editAccountUsernameHint" style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">로그인 시 사용하는 고유 아이디입니다.</div>
-        </div>
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label class="form-label" for="editAccountDisplayName" style="font-size:12px; font-weight:700;">계정 표시 이름</label>
-          <input type="text" class="form-input" id="editAccountDisplayName" placeholder="예: 회원 또는 성함" required>
         </div>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="btn-cancel" style="flex: 1;" onclick="closeModal('editAccountModal')">취소</button>

@@ -1297,7 +1297,10 @@ function openBookingModalForSelectedDate() {
   if (submitBtnEl) submitBtnEl.textContent = '예약 완료하기';
 
   document.getElementById('bookDate').value = selectedDate;
-  document.getElementById('bookMemberName').value = '';
+  const memberNameEl = document.getElementById('bookMemberName');
+  if (memberNameEl) {
+    memberNameEl.value = (currentUser && currentUser.username) ? currentUser.username : '';
+  }
   
   renderTeamOptions();
   updateAdminHeaderUI();
@@ -1561,6 +1564,93 @@ function switchAdminHubTab(tabName) {
   }
 }
 
+let cachedAdminAccounts = [];
+
+function renderAdminAccounts(users) {
+  const listEl = document.getElementById('adminAccountList');
+  const countEl = document.getElementById('adminAccountCount');
+  if (!listEl) return;
+
+  if (countEl) {
+    const total = cachedAdminAccounts.length;
+    const current = (users || []).length;
+    countEl.textContent = (current === total) ? `(${total}명)` : `(${current}명 / 전체 ${total}명)`;
+  }
+
+  if (!users || users.length === 0) {
+    listEl.innerHTML = '<div class="empty-text">검색 결과가 없습니다.</div>';
+    return;
+  }
+
+  listEl.innerHTML = users.map(u => {
+    const isSelf = Boolean(currentUser && currentUser.username === u.username);
+    let roleLabel = '🎸 회원';
+    let roleClass = 'role-member';
+    if (u.role === 'admin') {
+      roleLabel = '👑 관리자';
+      roleClass = 'role-admin';
+    } else if (u.role === 'staff') {
+      roleLabel = '⭐ 운영진';
+      roleClass = 'role-staff';
+    } else if (u.role === 'rest') {
+      roleLabel = '💤 휴식';
+      roleClass = 'role-rest';
+    }
+    return `
+      <div class="admin-account-card">
+        <div class="admin-account-info">
+          <div class="admin-account-id-row">
+            <span class="admin-account-username">${escapeHtml(u.username)}</span>
+            <span class="admin-account-role-badge ${roleClass}">${roleLabel}</span>
+            ${isSelf ? '<span style="font-size:10px; color:#38bdf8; font-weight:800;">(접속중)</span>' : ''}
+          </div>
+          <div class="admin-account-sub">${u.created_at ? '가입일: ' + escapeHtml(u.created_at) : '가입일 미등록'}</div>
+        </div>
+        <div class="admin-account-actions">
+          <button type="button" class="btn-acct-edit" onclick="openEditAccountModal(${u.id}, '${escapeHtml(u.username)}', '${u.role}')">✏️ 수정</button>
+          <button type="button" class="btn-acct-pw" onclick="resetAccountPassword(${u.id}, '${escapeHtml(u.username)}')">🔑 비번</button>
+          ${!isSelf ? `<button type="button" class="btn-acct-del" onclick="deleteAccount(${u.id}, '${escapeHtml(u.username)}')">🗑️ 삭제</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterAdminAccounts() {
+  const searchEl = document.getElementById('adminAccountSearch');
+  const clearBtn = document.getElementById('btnAdminAccountSearchClear');
+  const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
+
+  if (clearBtn) {
+    clearBtn.style.display = q ? 'block' : 'none';
+  }
+
+  if (!q) {
+    renderAdminAccounts(cachedAdminAccounts);
+    return;
+  }
+
+  const filtered = cachedAdminAccounts.filter(u => {
+    const name = String(u.username || '').toLowerCase();
+    const date = String(u.created_at || '').toLowerCase();
+    const role = String(u.role || '').toLowerCase();
+    let roleText = '회원 member';
+    if (role === 'admin') roleText = '관리자 admin';
+    else if (role === 'staff') roleText = '운영진 staff';
+    else if (role === 'rest') roleText = '휴식 rest';
+
+    return name.includes(q) || date.includes(q) || roleText.includes(q);
+  });
+
+  renderAdminAccounts(filtered);
+}
+
+function clearAdminAccountSearch() {
+  const searchEl = document.getElementById('adminAccountSearch');
+  if (searchEl) searchEl.value = '';
+  filterAdminAccounts();
+}
+
 async function loadAdminAccounts() {
   const listEl = document.getElementById('adminAccountList');
   if (!listEl || !window.ObandDB) return;
@@ -1572,53 +1662,16 @@ async function loadAdminAccounts() {
       listEl.innerHTML = `<div class="empty-text" style="color:#f87171;">${escapeHtml((res && res.message) || '목록 조회 실패')}</div>`;
       return;
     }
-    const users = res.users || [];
-    if (users.length === 0) {
-      listEl.innerHTML = '<div class="empty-text">등록된 계정이 없습니다.</div>';
-      return;
-    }
-
-    listEl.innerHTML = users.map(u => {
-      const isSelf = Boolean(currentUser && currentUser.username === u.username);
-      let roleLabel = '🎸 회원';
-      let roleClass = 'role-member';
-      if (u.role === 'admin') {
-        roleLabel = '👑 관리자';
-        roleClass = 'role-admin';
-      } else if (u.role === 'staff') {
-        roleLabel = '⭐ 운영진';
-        roleClass = 'role-staff';
-      } else if (u.role === 'rest') {
-        roleLabel = '💤 휴식';
-        roleClass = 'role-rest';
-      }
-      return `
-        <div class="admin-account-card">
-          <div class="admin-account-info">
-            <div class="admin-account-id-row">
-              <span class="admin-account-username">${escapeHtml(u.username)}</span>
-              <span class="admin-account-role-badge ${roleClass}">${roleLabel}</span>
-              ${isSelf ? '<span style="font-size:10px; color:#38bdf8; font-weight:800;">(접속중)</span>' : ''}
-            </div>
-            <div class="admin-account-sub">${escapeHtml(u.display_name || '')}${u.created_at ? ' · ' + escapeHtml(u.created_at) : ''}</div>
-          </div>
-          <div class="admin-account-actions">
-            <button type="button" class="btn-acct-edit" onclick="openEditAccountModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.display_name || '')}', '${u.role}')">✏️ 수정</button>
-            <button type="button" class="btn-acct-pw" onclick="resetAccountPassword(${u.id}, '${escapeHtml(u.username)}')">🔑 비번</button>
-            ${!isSelf ? `<button type="button" class="btn-acct-del" onclick="deleteAccount(${u.id}, '${escapeHtml(u.username)}')">🗑️ 삭제</button>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
+    cachedAdminAccounts = res.users || [];
+    filterAdminAccounts();
   } catch (err) {
     listEl.innerHTML = `<div class="empty-text" style="color:#f87171;">오류: ${escapeHtml(err.message)}</div>`;
   }
 }
 
-function openEditAccountModal(userId, username, displayName, role) {
+function openEditAccountModal(userId, username, role) {
   const idEl = document.getElementById('editAccountUserId');
   const userEl = document.getElementById('editAccountUsername');
-  const displayEl = document.getElementById('editAccountDisplayName');
   const roleEl = document.getElementById('editAccountRole');
   const hintEl = document.getElementById('editAccountUsernameHint');
 
@@ -1633,7 +1686,6 @@ function openEditAccountModal(userId, username, displayName, role) {
       hintEl.textContent = isDefaultAdmin ? '기본 admin 아이디는 변경할 수 없습니다.' : '로그인 시 사용하는 고유 아이디입니다.';
     }
   }
-  if (displayEl) displayEl.value = displayName || '회원';
   if (roleEl) roleEl.value = role || 'member';
 
   openModal('editAccountModal');
@@ -1646,22 +1698,16 @@ async function submitEditAccount(e) {
   const userId = document.getElementById('editAccountUserId').value;
   const username = document.getElementById('editAccountUsername').value.trim();
   const role = document.getElementById('editAccountRole').value;
-  const displayName = document.getElementById('editAccountDisplayName').value.trim();
 
   if (!username) {
     alert('계정 아이디를 입력해 주세요.');
-    return;
-  }
-  if (!displayName) {
-    alert('계정 표시 이름을 입력해 주세요.');
     return;
   }
 
   try {
     const res = await window.ObandDB.updateAccount(userId, {
       username: username,
-      role: role,
-      display_name: displayName
+      role: role
     });
 
     if (res && res.success) {
@@ -1670,7 +1716,6 @@ async function submitEditAccount(e) {
       await loadAdminAccounts();
       if (currentUser && currentUser.id === Number(userId)) {
         currentUser.username = username;
-        currentUser.display_name = displayName;
         currentUser.role = role;
         sessionStorage.setItem('oband_session_user', JSON.stringify(currentUser));
         localStorage.setItem('oband_session_user', JSON.stringify(currentUser));
@@ -1692,13 +1737,11 @@ async function submitCreateAccount(e) {
   }
 
   const roleEl = document.getElementById('newAccountRole');
-  const displayEl = document.getElementById('newAccountDisplayName');
   const userEl = document.getElementById('newAccountUsername');
   const pwEl = document.getElementById('newAccountPassword');
 
   const payload = {
     role: roleEl ? roleEl.value : 'member',
-    display_name: displayEl ? displayEl.value.trim() : '',
     username: userEl ? userEl.value.trim() : '',
     password: pwEl ? pwEl.value : ''
   };
@@ -1710,7 +1753,6 @@ async function submitCreateAccount(e) {
       return;
     }
     alert(res.message);
-    if (displayEl) displayEl.value = '';
     if (userEl) userEl.value = '';
     if (pwEl) pwEl.value = '';
     await loadAdminAccounts();
