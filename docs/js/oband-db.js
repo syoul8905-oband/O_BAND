@@ -428,8 +428,17 @@
       }
 
       const inputHash = hashPassword(rawPw);
-      if (account.contact !== inputHash) {
+      const rawHash = sha256(unescape(encodeURIComponent(rawPw)));
+      if (account.contact !== inputHash && account.contact !== rawHash) {
         return { success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' };
+      }
+
+      // 구버전 미솔트 해시 계정 자동 업그레이드
+      if (account.contact === rawHash && account.contact !== inputHash) {
+        apiFetch(`delivery_schedules?id=eq.${Number(account.id)}&source_sheet=eq.OBAND_USERS`, {
+          method: 'PATCH',
+          body: JSON.stringify({ contact: inputHash })
+        }).catch(() => {});
       }
 
       const role = account.category === 'admin' ? 'admin' : (account.category === 'staff' ? 'staff' : (account.category === 'rest' ? 'rest' : 'member'));
