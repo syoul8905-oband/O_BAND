@@ -518,6 +518,62 @@
       return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
     },
 
+    // 0-4b. 일반 부원 본인 비밀번호 변경 (본인 세션 + 현재 비밀번호 검증 + CAS 일치 시에만 수정)
+    async changeOwnPassword(currentPassword, newPassword) {
+      const sessionUser = getSessionUser();
+      if (!sessionUser || !sessionUser.id || !sessionUser.username) {
+        return { success: false, message: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.' };
+      }
+
+      const curPw = String(currentPassword || '');
+      const nextPw = String(newPassword || '');
+      if (!curPw) {
+        return { success: false, message: '현재 비밀번호를 입력해 주세요.' };
+      }
+      if (nextPw.length < 4) {
+        return { success: false, message: '새 비밀번호는 최소 4자 이상 입력해 주세요.' };
+      }
+      if (nextPw === curPw) {
+        return { success: false, message: '현재 비밀번호와 다른 새 비밀번호를 입력해 주세요.' };
+      }
+
+      const cleanId = String(sessionUser.username).trim().toLowerCase();
+      const rows = await apiFetch(
+        `delivery_schedules?select=id,customer_name,contact,category,status&id=eq.${Number(sessionUser.id)}&source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(cleanId)}&status=eq.active`
+      );
+      if (!rows || rows.length === 0) {
+        return {
+          success: false,
+          code: 'ACCOUNT_NOT_FOUND',
+          message: '계정 정보를 찾을 수 없거나 관리자에 의해 삭제되었습니다. 다시 로그인해 주세요.'
+        };
+      }
+
+      const account = rows[0];
+      const currentHash = hashPassword(curPw);
+      if (account.contact !== currentHash) {
+        return { success: false, message: '현재 비밀번호가 일치하지 않습니다.' };
+      }
+
+      const nextHash = hashPassword(nextPw);
+      const updated = await apiFetch(
+        `delivery_schedules?id=eq.${Number(account.id)}&source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(account.customer_name)}&contact=eq.${encodeURIComponent(currentHash)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ contact: nextHash })
+        }
+      );
+
+      if (!Array.isArray(updated) || updated.length === 0) {
+        return {
+          success: false,
+          message: '비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+        };
+      }
+
+      return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
+    },
+
     // 0-5. 계정 삭제 (관리자 전용 / 마지막 관리자 및 본인 계정 보호)
     async deleteUser(userId) {
       if (!isAdminSession()) {

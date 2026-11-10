@@ -1649,6 +1649,9 @@ async function resetAccountPassword(userId, username) {
       alert((res && res.message) || '비밀번호 변경 실패');
       return;
     }
+    if (currentUser && currentUser.username && currentUser.username.toLowerCase() === String(username || '').trim().toLowerCase()) {
+      syncSavedCredentialsPassword(username, newPw);
+    }
     alert(`✅ [${username}] 계정의 비밀번호가 변경되었습니다.`);
   } catch (err) {
     alert(`오류: ${err.message}`);
@@ -1669,6 +1672,191 @@ async function deleteAccount(userId, username) {
     await loadAdminAccounts();
   } catch (err) {
     alert(`오류: ${err.message}`);
+  }
+}
+
+let isSubmittingMemberPw = false;
+
+function resetMemberPwToggleButtons() {
+  const modal = document.getElementById('memberPasswordModal');
+  if (!modal) return;
+  modal.querySelectorAll('.pw-toggle-btn').forEach(btn => {
+    btn.textContent = '👁️';
+  });
+}
+
+function clearMemberPwError() {
+  const errEl = document.getElementById('memberPwError');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+}
+
+function syncSavedCredentialsPassword(targetUsername, newPassword) {
+  try {
+    const isSaved = localStorage.getItem(SAVED_CREDS_CHK_KEY) === 'true';
+    const rawCreds = localStorage.getItem(SAVED_CREDS_KEY);
+    if (!isSaved || !rawCreds) return;
+    const parsed = JSON.parse(rawCreds);
+    const savedUser = String((parsed && parsed.username) || '').trim().toLowerCase();
+    const curUser = String(targetUsername || '').trim().toLowerCase();
+    if (savedUser && curUser && savedUser === curUser) {
+      localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({
+        username: parsed.username,
+        password: newPassword
+      }));
+    }
+  } catch (e) {}
+}
+
+function openMemberPasswordModal() {
+  refreshAuthStateFromStorage();
+  if (!currentUser) {
+    showLoginGateScreen();
+    return;
+  }
+  if (isAdmin) {
+    openAdminHubModal('tab-accounts');
+    return;
+  }
+
+  const infoEl = document.getElementById('memberPwAccountInfo');
+  const curEl = document.getElementById('memberCurrentPw');
+  const newEl = document.getElementById('memberNewPw');
+  const confirmEl = document.getElementById('memberNewPwConfirm');
+  const submitBtn = document.getElementById('btnMemberPwSubmit');
+
+  if (infoEl) {
+    const uname = currentUser.username || '';
+    const dname = currentUser.display_name || uname;
+    const labelHtml = (dname && dname.toLowerCase() !== uname.toLowerCase())
+      ? `👤 <strong>${escapeHtml(dname)}</strong> <span style="color:#94a3b8;">(아이디: ${escapeHtml(uname)})</span>`
+      : `👤 <strong>${escapeHtml(uname)}</strong>`;
+    infoEl.innerHTML = `${labelHtml}<div style="font-size:11.5px; color:var(--text-sub); margin-top:3px;">로그인된 본인 계정의 비밀번호를 변경합니다.</div>`;
+  }
+
+  [curEl, newEl, confirmEl].forEach(el => {
+    if (el) {
+      el.value = '';
+      el.type = 'password';
+    }
+  });
+  resetMemberPwToggleButtons();
+  clearMemberPwError();
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '🔒 비밀번호 변경하기';
+  }
+
+  openModal('memberPasswordModal');
+  setTimeout(() => {
+    if (curEl) curEl.focus();
+  }, 180);
+}
+
+function toggleMemberPwField(inputId, btnEl) {
+  const inputEl = document.getElementById(inputId);
+  if (!inputEl) return;
+  if (inputEl.type === 'password') {
+    inputEl.type = 'text';
+    if (btnEl) btnEl.textContent = '🙈';
+  } else {
+    inputEl.type = 'password';
+    if (btnEl) btnEl.textContent = '👁️';
+  }
+}
+
+async function submitMemberPasswordChange(e) {
+  e.preventDefault();
+  if (isSubmittingMemberPw) return;
+
+  refreshAuthStateFromStorage();
+  if (!currentUser || !currentUser.username) {
+    closeModal('memberPasswordModal');
+    showLoginGateScreen();
+    return;
+  }
+
+  const curEl = document.getElementById('memberCurrentPw');
+  const newEl = document.getElementById('memberNewPw');
+  const confirmEl = document.getElementById('memberNewPwConfirm');
+  const errEl = document.getElementById('memberPwError');
+  const submitBtn = document.getElementById('btnMemberPwSubmit');
+
+  const showMemberPwErr = (msg) => {
+    if (errEl) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+  };
+
+  clearMemberPwError();
+
+  const curPw = curEl ? curEl.value : '';
+  const newPw = newEl ? newEl.value : '';
+  const confirmPw = confirmEl ? confirmEl.value : '';
+
+  if (!curPw) {
+    showMemberPwErr('현재 비밀번호를 입력해 주세요.');
+    if (curEl) curEl.focus();
+    return;
+  }
+  if (newPw.length < 4) {
+    showMemberPwErr('새 비밀번호는 최소 4자 이상 입력해 주세요.');
+    if (newEl) newEl.focus();
+    return;
+  }
+  if (newPw !== confirmPw) {
+    showMemberPwErr('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+    if (confirmEl) confirmEl.focus();
+    return;
+  }
+  if (newPw === curPw) {
+    showMemberPwErr('현재 비밀번호와 다른 새 비밀번호를 입력해 주세요.');
+    if (newEl) newEl.focus();
+    return;
+  }
+  if (!window.ObandDB || typeof window.ObandDB.changeOwnPassword !== 'function') {
+    showMemberPwErr('데이터 연결 모듈이 준비되지 않았습니다.');
+    return;
+  }
+
+  isSubmittingMemberPw = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ 비밀번호 변경 중...';
+  }
+
+  try {
+    const res = await window.ObandDB.changeOwnPassword(curPw, newPw);
+    if (!res || !res.success) {
+      showMemberPwErr((res && res.message) || '비밀번호 변경에 실패했습니다.');
+      if (res && res.message && res.message.includes('현재 비밀번호') && curEl) {
+        curEl.focus();
+      }
+      return;
+    }
+
+    syncSavedCredentialsPassword(currentUser.username, newPw);
+    [curEl, newEl, confirmEl].forEach(el => {
+      if (el) {
+        el.value = '';
+        el.type = 'password';
+      }
+    });
+    resetMemberPwToggleButtons();
+    closeModal('memberPasswordModal');
+    showToast('🔒 비밀번호가 변경되었습니다! 다음 로그인부터 새 비밀번호를 사용하세요.');
+  } catch (err) {
+    showMemberPwErr(`비밀번호 변경 중 오류가 발생했습니다: ${err.message}`);
+  } finally {
+    isSubmittingMemberPw = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔒 비밀번호 변경하기';
+    }
   }
 }
 

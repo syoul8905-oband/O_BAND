@@ -98,7 +98,7 @@
         <button class="btn-admin-header" id="btnOpenAdminHub" onclick="openAdminHubModal('tab-accounts')" title="통합 관리자 센터" style="display:none;">
           <span>👑 관리자</span>
         </button>
-        <span class="member-user-badge" id="memberUserBadge" style="display:none;">👤 부원</span>
+        <button type="button" class="member-user-badge" id="memberUserBadge" onclick="openMemberPasswordModal()" title="내 비밀번호 변경" aria-label="내 비밀번호 변경" style="display:none;">👤 부원</button>
         <button class="btn-header-logout" id="btnHeaderLogout" onclick="logoutAuthSession()" title="로그아웃">로그아웃</button>
         <div class="header-status" id="connectionStatus" onclick="openShareModal()">
           <span class="status-dot"></span>
@@ -425,6 +425,48 @@
           <button type="submit" class="btn-submit">팀명 목록 저장하기</button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- [모달 3-B] 일반 부원 본인 비밀번호 변경 모달 -->
+  <div class="modal-overlay" id="memberPasswordModal">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <div class="sheet-title">🔒 내 비밀번호 변경</div>
+        <button type="button" class="sheet-close-btn" onclick="closeModal('memberPasswordModal')">✕</button>
+      </div>
+      <div class="member-pw-account-banner" id="memberPwAccountInfo">
+        👤 로그인 계정 확인 중...
+      </div>
+      <form id="memberPwForm" onsubmit="submitMemberPasswordChange(event)" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label" for="memberCurrentPw">현재 비밀번호</label>
+          <div class="pw-input-wrapper">
+            <input type="password" id="memberCurrentPw" autocomplete="current-password" oninput="clearMemberPwError()" class="form-input" placeholder="현재 사용 중인 비밀번호" required style="padding-right: 46px;">
+            <button type="button" class="pw-toggle-btn" onclick="toggleMemberPwField('memberCurrentPw', this)" aria-label="현재 비밀번호 보기">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="memberNewPw">새 비밀번호 (4자 이상)</label>
+          <div class="pw-input-wrapper">
+            <input type="password" id="memberNewPw" minlength="4" autocomplete="new-password" oninput="clearMemberPwError()" class="form-input" placeholder="새 비밀번호 4자 이상 입력" required style="padding-right: 46px;">
+            <button type="button" class="pw-toggle-btn" onclick="toggleMemberPwField('memberNewPw', this)" aria-label="새 비밀번호 보기">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="memberNewPwConfirm">새 비밀번호 확인</label>
+          <div class="pw-input-wrapper">
+            <input type="password" id="memberNewPwConfirm" minlength="4" autocomplete="new-password" oninput="clearMemberPwError()" class="form-input" placeholder="새 비밀번호 한 번 더 입력" required style="padding-right: 46px;">
+            <button type="button" class="pw-toggle-btn" onclick="toggleMemberPwField('memberNewPwConfirm', this)" aria-label="새 비밀번호 확인 보기">👁️</button>
+          </div>
+        </div>
+
+        <div id="memberPwError" class="login-gate-error" style="display: none;"></div>
+
+        <button type="submit" class="btn-submit" id="btnMemberPwSubmit">🔒 비밀번호 변경하기</button>
+      </form>
     </div>
   </div>
 
