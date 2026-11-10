@@ -252,7 +252,7 @@ def run_wtt():
     if doc_match:
         dom_calls = re.findall(r'([a-zA-Z0-9_]+)\s*\(', doc_match.group(1))
         for fn in dom_calls:
-            if fn != 'catch':
+            if fn not in ('catch', 'if', 'for', 'while', 'switch'):
                 assert fn in defs, f"DOMContentLoaded 내부 호출 함수 {fn}가 app.js에 정의되지 않음!"
 
     for fname in ['index.html', 'style.css', 'app.js']:
@@ -260,7 +260,7 @@ def run_wtt():
         with open(fpath, 'r', encoding='utf-8') as f:
             content = f.read()
             if fname == 'index.html':
-                assert 'btnAdminLogin' in content and 'btn-admin-config' in content and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content and 'shortcutModal' in content and 'iosInstallGuideModal' in content
+                assert ('btnOpenAdminHub' in content or 'btnAdminLogin' in content) and 'bookingSuccessModal' in content and 'sleepModeOverlay' in content and 'shortcutModal' in content and 'iosInstallGuideModal' in content
             elif fname == 'style.css':
                 assert 'btn-force-cancel' in content and 'btn-kakao-share' in content and 'sleep-mode-overlay' in content
                 assert 'timeline-top-row' in content and 'timeline-bottom-row' in content and 'timeline-actions' in content

@@ -1906,10 +1906,22 @@ body {
   border: 1px solid rgba(245, 158, 11, 0.45);
 }
 
+.admin-account-role-badge.role-staff {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.45);
+}
+
 .admin-account-role-badge.role-member {
   background: rgba(0, 223, 216, 0.15);
   color: #00dfd8;
   border: 1px solid rgba(0, 223, 216, 0.35);
+}
+
+.admin-account-role-badge.role-rest {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 .admin-account-sub {
@@ -1923,6 +1935,22 @@ body {
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
+}
+
+.btn-acct-edit {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: #c084fc;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .btn-acct-pw {

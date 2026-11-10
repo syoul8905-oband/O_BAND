@@ -413,7 +413,7 @@
       await ObandDB.ensureDefaultAdmin();
 
       const rows = await apiFetch(
-        `delivery_schedules?source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(cleanId)}&status=eq.active`
+        `delivery_schedules?source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(cleanId)}`
       );
 
       if (!rows || rows.length === 0) {
@@ -421,17 +421,25 @@
       }
 
       const account = rows[0];
+
+      // 휴식 계정 (비밀번호 일치 여부와 무관하게 로그인 원천 차단)
+      if (account.category === 'rest' || account.status === 'rest' || account.status === 'inactive') {
+        return { success: false, message: '현재 휴식 중인 계정입니다. 관리자에게 문의해 주세요.' };
+      }
+
       const inputHash = hashPassword(rawPw);
       if (account.contact !== inputHash) {
         return { success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' };
       }
+
+      const role = account.category === 'admin' ? 'admin' : (account.category === 'staff' ? 'staff' : (account.category === 'rest' ? 'rest' : 'member'));
 
       return {
         success: true,
         user: {
           id: account.id,
           username: account.customer_name,
-          role: account.category === 'admin' ? 'admin' : 'member',
+          role: role,
           display_name: account.driver_name || account.customer_name
         }
       };
@@ -446,23 +454,57 @@
       const users = (rows || []).map(r => ({
         id: r.id,
         username: r.customer_name,
-        role: r.category === 'admin' ? 'admin' : 'member',
+        role: r.category === 'admin' ? 'admin' : (r.category === 'staff' ? 'staff' : (r.category === 'rest' || r.status === 'rest' ? 'rest' : 'member')),
         display_name: r.driver_name || r.customer_name,
         status: r.status || 'active',
         created_at: r.memo_special || (r.created_at ? r.created_at.substring(0, 10) : '')
       }));
+
+      // 계정 정렬 규칙: 1) admin 최상단 -> 2) 이윤형 -> 3) 가입일자 없는 계정 -> 4) 가입일자 빠른 순서(오름차순)
+      users.sort((a, b) => {
+        if (a.username === 'admin') return -1;
+        if (b.username === 'admin') return 1;
+        if (a.username === '이윤형') return -1;
+        if (b.username === '이윤형') return 1;
+
+        const dateA = String(a.created_at || '').trim();
+        const dateB = String(b.created_at || '').trim();
+        const hasDateA = Boolean(dateA && dateA !== '-');
+        const hasDateB = Boolean(dateB && dateB !== '-');
+
+        if (!hasDateA && hasDateB) return -1;
+        if (hasDateA && !hasDateB) return 1;
+        if (!hasDateA && !hasDateB) {
+          return a.id - b.id;
+        }
+
+        const normA = dateA.replace(/\./g, '-');
+        const normB = dateB.replace(/\./g, '-');
+        if (normA !== normB) {
+          return normA.localeCompare(normB);
+        }
+        return a.id - b.id;
+      });
+
       return { success: true, users };
     },
 
-    // 0-3. 새 계정(부원 공용 / 관리자) 생성 (관리자 전용)
+    // 0-3. 새 계정(관리자/운영진/회원/휴식) 생성 (관리자 전용)
     async createUser(data) {
       if (!isAdminSession()) {
         return { success: false, message: '관리자 권한이 필요합니다.' };
       }
       const username = String(data.username || '').trim().toLowerCase();
       const password = String(data.password || '');
-      const role = data.role === 'admin' ? 'admin' : 'member';
-      const display_name = String(data.display_name || '').trim() || (role === 'admin' ? '관리자' : '부원 공용');
+      const validRoles = ['admin', 'staff', 'member', 'rest'];
+      const role = validRoles.includes(data.role) ? data.role : 'member';
+
+      let defaultName = '회원';
+      if (role === 'admin') defaultName = '관리자';
+      else if (role === 'staff') defaultName = '운영진';
+      else if (role === 'rest') defaultName = '휴식';
+
+      const display_name = String(data.display_name || '').trim() || defaultName;
 
       if (username.length < 2 || /\s/.test(username)) {
         return { success: false, message: '아이디는 공백 없이 2글자 이상 입력해 주세요.' };
@@ -484,7 +526,7 @@
         contact: hashPassword(password),
         category: role,
         driver_name: display_name,
-        status: 'active',
+        status: role === 'rest' ? 'rest' : 'active',
         memo_special: getTodayString()
       };
 
@@ -498,6 +540,60 @@
         message: `새 계정 [${username}]이 성공적으로 생성되었습니다.`,
         id: inserted && inserted[0] ? inserted[0].id : null
       };
+    },
+
+    // 0-4. 계정 정보(구분, 표시이름, 아이디) 수정 (관리자 전용)
+    async updateAccount(userId, data) {
+      if (!isAdminSession()) {
+        return { success: false, message: '관리자 권한이 필요합니다.' };
+      }
+      const targetRows = await apiFetch(`delivery_schedules?id=eq.${Number(userId)}&source_sheet=eq.OBAND_USERS`);
+      if (!targetRows || targetRows.length === 0) {
+        return { success: false, message: '수정할 계정을 찾을 수 없습니다.' };
+      }
+      const target = targetRows[0];
+
+      const patchPayload = {};
+      if (data.role) {
+        const validRoles = ['admin', 'staff', 'member', 'rest'];
+        if (!validRoles.includes(data.role)) {
+          return { success: false, message: '올바른 계정 구분을 선택해 주세요.' };
+        }
+        if (target.category === 'admin' && data.role !== 'admin') {
+          const allAdmins = await apiFetch('delivery_schedules?source_sheet=eq.OBAND_USERS&category=eq.admin&status=eq.active');
+          if (!allAdmins || allAdmins.length <= 1) {
+            return { success: false, message: '마지막 관리자 계정의 권한은 변경할 수 없습니다.' };
+          }
+        }
+        patchPayload.category = data.role;
+        patchPayload.status = (data.role === 'rest') ? 'rest' : 'active';
+      }
+      if (typeof data.display_name !== 'undefined') {
+        patchPayload.driver_name = String(data.display_name).trim();
+      }
+      if (data.username) {
+        const cleanId = String(data.username).trim();
+        if (cleanId.length < 2 || /\s/.test(cleanId)) {
+          return { success: false, message: '아이디는 공백 없이 2글자 이상 입력해 주세요.' };
+        }
+        if (target.customer_name === 'admin' && cleanId.toLowerCase() !== 'admin') {
+          return { success: false, message: '기본 admin 아이디는 변경할 수 없습니다.' };
+        }
+        const dup = await apiFetch(
+          `delivery_schedules?source_sheet=eq.OBAND_USERS&customer_name=eq.${encodeURIComponent(cleanId)}&id=neq.${Number(userId)}`
+        );
+        if (dup && dup.length > 0) {
+          return { success: false, message: `이미 존재하는 아이디(${cleanId})입니다.` };
+        }
+        patchPayload.customer_name = cleanId;
+      }
+
+      await apiFetch(`delivery_schedules?id=eq.${Number(userId)}&source_sheet=eq.OBAND_USERS`, {
+        method: 'PATCH',
+        body: JSON.stringify(patchPayload)
+      });
+
+      return { success: true, message: '계정 정보가 성공적으로 수정되었습니다.' };
     },
 
     // 0-4. 계정 비밀번호 변경 (관리자 전용)

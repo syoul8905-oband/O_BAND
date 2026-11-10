@@ -201,7 +201,8 @@ function updateAdminHeaderUI() {
   if (memberBadge) {
     if (!isAdmin && currentUser) {
       memberBadge.style.display = 'inline-flex';
-      memberBadge.textContent = `👤 ${currentUser.display_name || currentUser.username}`;
+      const rolePrefix = currentUser.role === 'staff' ? '⭐' : '👤';
+      memberBadge.textContent = `${rolePrefix} ${currentUser.display_name || currentUser.username}`;
     } else {
       memberBadge.style.display = 'none';
     }
@@ -313,17 +314,21 @@ async function enterAuthenticatedApp() {
 }
 
 // 앱 시작 즉시 초기화 (로그인 게이트 우선 검사)
+async function initApp() {
+  checkKakaoBanner();
+  checkPwaInstallBanner();
+  refreshAuthStateFromStorage();
+
+  if (currentUser && currentUser.username) {
+    await enterAuthenticatedApp();
+  } else {
+    showLoginGateScreen();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    checkKakaoBanner();
-    checkPwaInstallBanner();
-    refreshAuthStateFromStorage();
-
-    if (currentUser && currentUser.username) {
-      await enterAuthenticatedApp();
-    } else {
-      showLoginGateScreen();
-    }
+    await initApp();
   } catch (err) {
     console.error('초기 로딩 중 오류 발생:', err);
     if (currentUser && currentUser.username) {
@@ -1575,8 +1580,18 @@ async function loadAdminAccounts() {
 
     listEl.innerHTML = users.map(u => {
       const isSelf = Boolean(currentUser && currentUser.username === u.username);
-      const roleLabel = u.role === 'admin' ? '👑 관리자' : '🎸 부원 공용';
-      const roleClass = u.role === 'admin' ? 'role-admin' : 'role-member';
+      let roleLabel = '🎸 회원';
+      let roleClass = 'role-member';
+      if (u.role === 'admin') {
+        roleLabel = '👑 관리자';
+        roleClass = 'role-admin';
+      } else if (u.role === 'staff') {
+        roleLabel = '⭐ 운영진';
+        roleClass = 'role-staff';
+      } else if (u.role === 'rest') {
+        roleLabel = '💤 휴식';
+        roleClass = 'role-rest';
+      }
       return `
         <div class="admin-account-card">
           <div class="admin-account-info">
@@ -1588,6 +1603,7 @@ async function loadAdminAccounts() {
             <div class="admin-account-sub">${escapeHtml(u.display_name || '')}${u.created_at ? ' · ' + escapeHtml(u.created_at) : ''}</div>
           </div>
           <div class="admin-account-actions">
+            <button type="button" class="btn-acct-edit" onclick="openEditAccountModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.display_name || '')}', '${u.role}')">✏️ 수정</button>
             <button type="button" class="btn-acct-pw" onclick="resetAccountPassword(${u.id}, '${escapeHtml(u.username)}')">🔑 비번</button>
             ${!isSelf ? `<button type="button" class="btn-acct-del" onclick="deleteAccount(${u.id}, '${escapeHtml(u.username)}')">🗑️ 삭제</button>` : ''}
           </div>
@@ -1596,6 +1612,75 @@ async function loadAdminAccounts() {
     }).join('');
   } catch (err) {
     listEl.innerHTML = `<div class="empty-text" style="color:#f87171;">오류: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function openEditAccountModal(userId, username, displayName, role) {
+  const idEl = document.getElementById('editAccountUserId');
+  const userEl = document.getElementById('editAccountUsername');
+  const displayEl = document.getElementById('editAccountDisplayName');
+  const roleEl = document.getElementById('editAccountRole');
+  const hintEl = document.getElementById('editAccountUsernameHint');
+
+  if (idEl) idEl.value = userId;
+  if (userEl) {
+    userEl.value = username;
+    const isDefaultAdmin = (username === 'admin');
+    userEl.readOnly = isDefaultAdmin;
+    userEl.style.opacity = isDefaultAdmin ? '0.7' : '1';
+    userEl.style.background = isDefaultAdmin ? 'rgba(255,255,255,0.04)' : '';
+    if (hintEl) {
+      hintEl.textContent = isDefaultAdmin ? '기본 admin 아이디는 변경할 수 없습니다.' : '로그인 시 사용하는 고유 아이디입니다.';
+    }
+  }
+  if (displayEl) displayEl.value = displayName || '회원';
+  if (roleEl) roleEl.value = role || 'member';
+
+  openModal('editAccountModal');
+}
+
+async function submitEditAccount(e) {
+  e.preventDefault();
+  if (!isAdmin || !window.ObandDB) return;
+
+  const userId = document.getElementById('editAccountUserId').value;
+  const username = document.getElementById('editAccountUsername').value.trim();
+  const role = document.getElementById('editAccountRole').value;
+  const displayName = document.getElementById('editAccountDisplayName').value.trim();
+
+  if (!username) {
+    alert('계정 아이디를 입력해 주세요.');
+    return;
+  }
+  if (!displayName) {
+    alert('계정 표시 이름을 입력해 주세요.');
+    return;
+  }
+
+  try {
+    const res = await window.ObandDB.updateAccount(userId, {
+      username: username,
+      role: role,
+      display_name: displayName
+    });
+
+    if (res && res.success) {
+      alert(res.message || '계정 정보가 성공적으로 수정되었습니다.');
+      closeModal('editAccountModal');
+      await loadAdminAccounts();
+      if (currentUser && currentUser.id === Number(userId)) {
+        currentUser.username = username;
+        currentUser.display_name = displayName;
+        currentUser.role = role;
+        sessionStorage.setItem('oband_session_user', JSON.stringify(currentUser));
+        localStorage.setItem('oband_session_user', JSON.stringify(currentUser));
+        updateAdminHeaderUI();
+      }
+    } else {
+      alert((res && res.message) || '수정에 실패했습니다.');
+    }
+  } catch (err) {
+    alert('수정 오류: ' + err.message);
   }
 }
 

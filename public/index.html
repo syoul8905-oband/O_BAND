@@ -41,7 +41,7 @@
       <form id="gateLoginForm" onsubmit="submitGateLogin(event)" autocomplete="on">
         <div class="form-group">
           <label class="form-label" for="loginUsername">아이디 (ID)</label>
-          <input type="text" id="loginUsername" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input" placeholder="부원 공용 아이디 또는 관리자 아이디" required>
+          <input type="text" id="loginUsername" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input" placeholder="회원 아이디 또는 관리자 아이디" required>
         </div>
 
         <div class="form-group">
@@ -66,7 +66,7 @@
 
       <div class="login-gate-footer">
         🔒 외부인 보호를 위해 동아리 로그인 후 이용 가능합니다.<br>
-        일반 부원은 관리자가 발급한 공용 아이디/비밀번호로 로그인하세요.
+        회원은 관리자가 발급한 아이디/비밀번호로 로그인하세요.
       </div>
     </div>
   </div>
@@ -98,7 +98,7 @@
         <button class="btn-admin-header" id="btnOpenAdminHub" onclick="openAdminHubModal('tab-accounts')" title="통합 관리자 센터" style="display:none;">
           <span>👑 관리자</span>
         </button>
-        <button type="button" class="member-user-badge" id="memberUserBadge" onclick="openMemberPasswordModal()" title="내 비밀번호 변경" aria-label="내 비밀번호 변경" style="display:none;">👤 부원</button>
+        <button type="button" class="member-user-badge" id="memberUserBadge" onclick="openMemberPasswordModal()" title="내 비밀번호 변경" aria-label="내 비밀번호 변경" style="display:none;">👤 회원</button>
         <button class="btn-header-logout" id="btnHeaderLogout" onclick="logoutAuthSession()" title="로그아웃">로그아웃</button>
         <div class="header-status" id="connectionStatus" onclick="openShareModal()">
           <span class="status-dot"></span>
@@ -276,7 +276,7 @@
           <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; height:18px;">
               <label class="form-label" for="bookBandTeam" style="margin-bottom:0;">팀명</label>
-              <button type="button" class="btn-chip-edit admin-only" id="btnBookingEditTeams" onclick="openAdminHubModal('tab-teams')" title="팀명 목록 관리자 수정" style="display:none; padding:1px 7px; font-size:10.5px; line-height:14px;">✏️ 수정</button>
+              <button type="button" class="btn-chip-edit admin-only" id="btnBookingEditTeams" onclick="openTeamChipsModal()" title="팀명 목록 관리자 수정" style="display:none; padding:1px 7px; font-size:10.5px; line-height:14px;">✏️ 수정</button>
             </div>
             <select class="form-select" id="bookBandTeam" onchange="onBandTeamChange()" required>
               <!-- JS 동적 렌더링 -->
@@ -333,7 +333,7 @@
       <!-- [관리자 탭 A] 계정(아이디/패스워드) 생성 및 관리 -->
       <div id="adminTab-tab-accounts" class="admin-tab-pane active">
         <div style="font-size:12px; color:var(--text-sub); margin-bottom:12px; line-height:1.5;">
-          일반 부원이 로그인할 <strong>공용 아이디/비밀번호</strong> 또는 추가 관리자 계정을 생성·관리합니다.
+          회원이 로그인할 계정 또는 운영진/관리자 계정을 생성·관리합니다.
         </div>
 
         <form id="createAccountForm" onsubmit="submitCreateAccount(event)" style="background:rgba(255,255,255,0.03); border:1px solid var(--border-light); border-radius:12px; padding:12px; margin-bottom:14px;">
@@ -342,13 +342,15 @@
             <div class="form-group">
               <label class="form-label" for="newAccountRole">계정 구분</label>
               <select class="form-select" id="newAccountRole">
-                <option value="member">🎸 부원 공용</option>
+                <option value="member" selected>🎸 회원</option>
+                <option value="staff">⭐ 운영진</option>
                 <option value="admin">👑 관리자</option>
+                <option value="rest">💤 휴식 (로그인 차단)</option>
               </select>
             </div>
             <div class="form-group">
               <label class="form-label" for="newAccountDisplayName">표시 이름</label>
-              <input type="text" class="form-input" id="newAccountDisplayName" placeholder="예: 오뺀 부원 공용">
+              <input type="text" class="form-input" id="newAccountDisplayName" placeholder="예: 회원 또는 이름">
             </div>
           </div>
           <div class="form-row">
@@ -788,6 +790,41 @@
       <button type="button" class="btn-zoom-ctrl highlight" onclick="setImageZoom(2.2)">🔍 2.2배</button>
       <button type="button" class="btn-zoom-ctrl" onclick="adjustImageZoom(0.6)">+ 확대</button>
       <button type="button" class="btn-zoom-ctrl close" onclick="closeImageZoom()">닫기</button>
+    </div>
+  </div>
+
+  <!-- [모달 13] 계정 정보(이름, 구분) 수정 모달 -->
+  <div class="modal-overlay" id="editAccountModal">
+    <div class="bottom-sheet" style="max-width: 440px;">
+      <div class="sheet-header">
+        <div class="sheet-title">✏️ 계정 정보 수정</div>
+        <button type="button" class="sheet-close" onclick="closeModal('editAccountModal')">✕</button>
+      </div>
+      <form id="editAccountForm" onsubmit="submitEditAccount(event)" style="padding: 12px 14px 20px;">
+        <input type="hidden" id="editAccountUserId">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label class="form-label" for="editAccountRole" style="font-size:12px; font-weight:700;">계정 구분</label>
+          <select class="form-select" id="editAccountRole">
+            <option value="member">🎸 회원</option>
+            <option value="staff">⭐ 운영진</option>
+            <option value="admin">👑 관리자</option>
+            <option value="rest">💤 휴식 (로그인 차단)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label class="form-label" for="editAccountUsername" style="font-size:12px; font-weight:700;">아이디 (ID / 이름)</label>
+          <input type="text" class="form-input" id="editAccountUsername" placeholder="아이디 입력 (2자 이상)" required autocapitalize="none" autocorrect="off" spellcheck="false">
+          <div id="editAccountUsernameHint" style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">로그인 시 사용하는 고유 아이디입니다.</div>
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label class="form-label" for="editAccountDisplayName" style="font-size:12px; font-weight:700;">계정 표시 이름</label>
+          <input type="text" class="form-input" id="editAccountDisplayName" placeholder="예: 회원 또는 성함" required>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-cancel" style="flex: 1;" onclick="closeModal('editAccountModal')">취소</button>
+          <button type="submit" class="btn-submit" style="flex: 2; margin: 0;">저장하기</button>
+        </div>
+      </form>
     </div>
   </div>
 
